@@ -38,6 +38,7 @@ async function setupDatabase() {
             port: Number(DB_PORT),
             user: DB_USER,
             password: DB_PASSWORD,
+            ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
             multipleStatements: true
         });
 
