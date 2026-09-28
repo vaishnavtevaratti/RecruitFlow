@@ -215,6 +215,35 @@ function validateOfferAcceptance(offer) {
 }
 
 /**
+ * Validates offer decline: offer must be SENT, not expired, and not already accepted/rejected.
+ */
+function validateOfferDecline(offer) {
+    if (!offer) {
+        return { valid: false, message: 'Offer record not found.' };
+    }
+    if (offer.status === OFFER_STATES.ACCEPTED) {
+        return { valid: false, message: 'Cannot decline an offer that has already been accepted.' };
+    }
+    if (offer.status === OFFER_STATES.REJECTED) {
+        return { valid: false, message: 'Offer has already been declined.' };
+    }
+    if (offer.status !== OFFER_STATES.SENT) {
+        return { valid: false, message: `Offer must be in SENT status to be declined. Current status: ${offer.status}.` };
+    }
+
+    if (offer.expiry_date) {
+        const expiry = new Date(offer.expiry_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (expiry < today) {
+            return { valid: false, message: 'Offer has expired and can no longer be declined.' };
+        }
+    }
+
+    return { valid: true };
+}
+
+/**
  * Validates candidate rejection.
  */
 function validateApplicationRejection(currentStatus) {
@@ -242,5 +271,6 @@ module.exports = {
     validateCandidateSelection,
     validateOfferCreation,
     validateOfferAcceptance,
+    validateOfferDecline,
     validateApplicationRejection
 };

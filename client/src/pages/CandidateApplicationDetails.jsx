@@ -116,7 +116,8 @@ export default function CandidateApplicationDetails() {
   const isHired = application.status === 'HIRED';
   const isRejected = application.status === 'REJECTED';
   const isSelected = ['SELECTED', 'OFFER_SENT', 'OFFER_ACCEPTED', 'HIRED'].includes(application.status);
-  const canAcceptOffer = offer && offer.status === 'SENT' && !isRejected;
+  const isOfferExpired = offer?.expiry_date ? new Date(offer.expiry_date) < new Date(new Date().setHours(0, 0, 0, 0)) : false;
+  const canRespondToOffer = offer && offer.status === 'SENT' && !isRejected && !isOfferExpired;
 
   return (
     <div className="container-fluid py-4">
@@ -140,15 +141,25 @@ export default function CandidateApplicationDetails() {
           </p>
         </div>
 
-        {canAcceptOffer && (
-          <button
-            onClick={handleAcceptOffer}
-            disabled={actionLoading}
-            className="btn btn-success btn-lg shadow d-flex align-items-center gap-2 animate__animated animate__pulse animate__infinite"
-          >
-            <i className="bi bi-check-circle-fill"></i>
-            <span>{actionLoading ? 'Processing...' : 'Accept Job Offer'}</span>
-          </button>
+        {canRespondToOffer && (
+          <div className="d-flex align-items-center gap-2">
+            <button
+              onClick={handleRejectOffer}
+              disabled={actionLoading}
+              className="btn btn-outline-danger btn-sm px-3"
+            >
+              <i className="bi bi-x-circle me-1"></i>
+              Decline Offer
+            </button>
+            <button
+              onClick={handleAcceptOffer}
+              disabled={actionLoading}
+              className="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1"
+            >
+              <i className="bi bi-check-circle-fill"></i>
+              <span>{actionLoading ? 'Processing...' : 'Accept Job Offer'}</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -452,11 +463,20 @@ export default function CandidateApplicationDetails() {
                 </div>
               ) : (
                 <div>
-                  {offer.status === 'SENT' && (
+                  {offer.status === 'SENT' && !isOfferExpired && (
                     <div className="alert alert-primary py-2 px-3 small d-flex align-items-center gap-2 mb-3">
                       <i className="bi bi-bell-fill fs-5"></i>
                       <div>
                         <strong>Offer received!</strong> Review the terms below and choose to accept or decline.
+                      </div>
+                    </div>
+                  )}
+
+                  {offer.status === 'SENT' && isOfferExpired && (
+                    <div className="alert alert-warning py-2 px-3 small d-flex align-items-center gap-2 mb-3">
+                      <i className="bi bi-exclamation-triangle-fill fs-5"></i>
+                      <div>
+                        <strong>Offer expired.</strong> The deadline for accepting this offer has passed ({new Date(offer.expiry_date).toLocaleDateString()}).
                       </div>
                     </div>
                   )}
@@ -470,13 +490,13 @@ export default function CandidateApplicationDetails() {
                             offer.status === 'ACCEPTED'
                               ? 'bg-success'
                               : offer.status === 'SENT'
-                              ? 'bg-primary'
+                              ? (isOfferExpired ? 'bg-secondary' : 'bg-primary')
                               : offer.status === 'REJECTED'
                               ? 'bg-danger'
                               : 'bg-secondary'
                           }`}
                         >
-                          {offer.status}
+                          {isOfferExpired && offer.status === 'SENT' ? 'EXPIRED' : (offer.status === 'REJECTED' ? 'DECLINED' : offer.status)}
                         </span>
                       </div>
                     </div>
@@ -505,14 +525,15 @@ export default function CandidateApplicationDetails() {
 
                     <div className="col-12">
                       <div className="text-muted small">Offer Expiry Date</div>
-                      <div className="fw-semibold text-danger">
+                      <div className={`fw-semibold ${isOfferExpired ? 'text-muted text-decoration-line-through' : 'text-danger'}`}>
                         {new Date(offer.expiry_date).toLocaleDateString()}
+                        {isOfferExpired && <span className="badge bg-secondary ms-2">Expired</span>}
                       </div>
                     </div>
                   </div>
 
                   {/* Actions for SENT Offer */}
-                  {canAcceptOffer && (
+                  {canRespondToOffer && (
                     <div className="d-grid gap-2 pt-2 border-top">
                       <button
                         onClick={handleAcceptOffer}
@@ -534,6 +555,13 @@ export default function CandidateApplicationDetails() {
                     </div>
                   )}
 
+                  {offer.status === 'SENT' && isOfferExpired && (
+                    <div className="alert alert-secondary py-2 px-3 small mt-2 mb-0 text-center">
+                      <i className="bi bi-clock-history me-1"></i>
+                      Offer Expired — Acceptance Deadline Passed
+                    </div>
+                  )}
+
                   {offer.status === 'ACCEPTED' && (
                     <div className="alert alert-success py-2 px-3 small mt-2 mb-0 text-center">
                       <i className="bi bi-check-circle-fill me-1"></i>
@@ -543,7 +571,8 @@ export default function CandidateApplicationDetails() {
 
                   {offer.status === 'REJECTED' && (
                     <div className="alert alert-danger py-2 px-3 small mt-2 mb-0 text-center">
-                      Offer Declined
+                      <i className="bi bi-x-circle-fill me-1"></i>
+                      Offer Declined — Application Concluded
                     </div>
                   )}
                 </div>

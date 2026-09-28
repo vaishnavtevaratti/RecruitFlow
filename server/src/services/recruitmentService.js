@@ -900,8 +900,9 @@ class RecruitmentService {
             throw err;
         }
 
-        if (offer.status === 'ACCEPTED') {
-            const err = new Error('Cannot reject an offer that has already been accepted.');
+        const validation = workflow.validateOfferDecline(offer);
+        if (!validation.valid) {
+            const err = new Error(validation.message);
             err.statusCode = 400;
             throw err;
         }

@@ -154,31 +154,9 @@ export default function Offers() {
                       <StatusBadge status={offer.status} />
                     </td>
                     <td className="text-end">
-                      <div className="btn-group btn-group-sm">
-                        <Link to={`/applications/${offer.application_id}`} className="btn btn-outline-secondary" title="View Application">
-                          <i className="bi bi-eye"></i>
-                        </Link>
-                        {offer.status === 'SENT' && (
-                          <>
-                            <button
-                              className="btn btn-success"
-                              onClick={() => handleAccept(offer.id, offer.candidate_name)}
-                              disabled={submitting}
-                              title="Accept Offer (Hire)"
-                            >
-                              <i className="bi bi-check-lg"></i> Accept
-                            </button>
-                            <button
-                              className="btn btn-outline-danger"
-                              onClick={() => handleReject(offer.id, offer.candidate_name)}
-                              disabled={submitting}
-                              title="Decline Offer"
-                            >
-                              <i className="bi bi-x-lg"></i>
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <Link to={`/applications/${offer.application_id}`} className="btn btn-sm btn-outline-primary" title="View Application Pipeline">
+                        <i className="bi bi-eye me-1"></i> View
+                      </Link>
                     </td>
                   </tr>
                 ))}

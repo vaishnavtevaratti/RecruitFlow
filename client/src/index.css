@@ -407,3 +407,30 @@ body {
     margin-left: 0;
   }
 }
+
+/* Candidate Authentication Layout */
+.login-wrapper {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2.5rem 1rem;
+  background-color: var(--rf-light-bg);
+}
+
+.login-card {
+  width: 100%;
+  background-color: var(--rf-card-bg);
+  border: 1px solid var(--rf-border);
+  border-radius: 16px;
+  margin: auto;
+}
+
+.login-card .brand-icon {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}

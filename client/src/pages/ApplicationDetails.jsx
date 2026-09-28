@@ -518,21 +518,22 @@ export default function ApplicationDetails() {
               </div>
 
               {app.offer.status === 'SENT' && (
-                <div className="border-top pt-3 mt-3 d-flex justify-content-end gap-2">
-                  <button
-                    className="btn btn-outline-danger btn-sm"
-                    onClick={() => handleDeclineOffer(app.offer.id)}
-                    disabled={submitting}
-                  >
-                    <i className="bi bi-x-circle me-1"></i> Decline Offer
-                  </button>
-                  <button
-                    className="btn btn-success btn-sm"
-                    onClick={() => handleAcceptOffer(app.offer.id)}
-                    disabled={submitting}
-                  >
-                    <i className="bi bi-check-circle me-1"></i> Accept Offer & Confirm Hire
-                  </button>
+                <div className="border-top pt-3 mt-3 d-flex align-items-center justify-content-between text-muted small">
+                  <span>
+                    <i className="bi bi-hourglass-split me-1 text-primary"></i>
+                    Awaiting candidate acceptance or decline
+                  </span>
+                  <span className="badge bg-primary-subtle text-primary">Pending Candidate Action</span>
+                </div>
+              )}
+              {app.offer.status === 'ACCEPTED' && (
+                <div className="border-top pt-3 mt-3 text-success small fw-semibold">
+                  <i className="bi bi-check-circle-fill me-1"></i> Offer Accepted by Candidate — Candidate is HIRED
+                </div>
+              )}
+              {app.offer.status === 'REJECTED' && (
+                <div className="border-top pt-3 mt-3 text-danger small fw-semibold">
+                  <i className="bi bi-x-circle-fill me-1"></i> Offer Declined by Candidate — Application REJECTED
                 </div>
               )}
             </div>
@@ -614,15 +615,13 @@ export default function ApplicationDetails() {
                 </button>
               )}
 
-              {/* State 7: OFFER_SENT -> ACCEPTED / HIRED */}
-              {app.status === 'OFFER_SENT' && app.offer && (
-                <button
-                  className="btn btn-success"
-                  onClick={() => handleAcceptOffer(app.offer.id)}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-check2-all me-1"></i> Record Offer Acceptance (Hire)
-                </button>
+              {/* State 7: OFFER_SENT -> Awaiting Candidate Decision */}
+              {app.status === 'OFFER_SENT' && (
+                <div className="alert alert-info text-center mb-0">
+                  <i className="bi bi-envelope-paper-fill fs-3 d-block mb-1 text-primary"></i>
+                  <strong>Offer Dispatched</strong>
+                  <div className="small mt-1">Awaiting candidate acceptance or decline.</div>
+                </div>
               )}
 
               {/* Terminal: HIRED */}

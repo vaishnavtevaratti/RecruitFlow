@@ -28,11 +28,14 @@ let candidateTwoUser = null;
 
 let testJobId = null;
 let testClosedJobId = null;
+let testJobTwoId = null;
 let testAppId = null;
 let testInterviewId = null;
 let testOfferId = null;
 
 let testAppTwoId = null;
+let testAppThreeId = null;
+let testOfferThreeId = null;
 
 let passedChecks = 0;
 let failedChecks = 0;
@@ -574,16 +577,167 @@ async function runCandidateTests() {
             logFail('Candidate sees HIRED', 'Dashboard hired count not updated');
         }
 
-        // 36. Existing rejection flow still works
-        // Create an application to test rejection
-        const appToReject = await request('/api/candidate/apply', {
+        // 36. Candidate cannot decline another candidate's offer (IDOR protection on reject-offer)
+        const foreignRejectRes = await request(`/api/candidate/applications/${testAppId}/reject-offer`, {
+            method: 'POST',
+            token: candidateTwoToken
+        });
+        if (foreignRejectRes.status === 403) {
+            logPass("Candidate cannot decline another candidate's offer", 'HTTP 403 Forbidden verified');
+        } else {
+            logFail("Candidate cannot decline another candidate's offer", `Expected 403, got ${foreignRejectRes.status}`);
+        }
+
+        // 37. Accepted offer cannot be declined
+        const acceptedDeclineRes = await request(`/api/candidate/applications/${testAppId}/reject-offer`, {
+            method: 'POST',
+            token: candidateToken
+        });
+        if (acceptedDeclineRes.status === 400) {
+            logPass('Accepted offer cannot be declined', 'HTTP 400 decline blocked for ACCEPTED offer');
+        } else {
+            logFail('Accepted offer cannot be declined', `Expected 400, got ${acceptedDeclineRes.status}`);
+        }
+
+        // 38. Create full pipeline for candidate declines own offer
+        const [jobTwoResult] = await pool.execute(
+            `INSERT INTO jobs (title, department, description, skills, experience_required, location, employment_type, deadline, status, created_by)
+             VALUES ('Staff QA Engineer', 'Engineering', 'Test requisition', 'Testing, Automation', '5 years', 'Remote', 'Full-time', '2027-01-01', 'PUBLISHED', 1)`
+        );
+        testJobTwoId = jobTwoResult.insertId;
+
+        const candTwoAppThreeRes = await request('/api/candidate/apply', {
             method: 'POST',
             token: candidateTwoToken,
-            body: { job_id: testJobId }
-        }).catch(() => null);
-        
+            body: { job_id: testJobTwoId }
+        });
+        testAppThreeId = candTwoAppThreeRes.data?.data?.id;
+
+        await request(`/api/applications/${testAppThreeId}/screen`, { method: 'PATCH', token: hrToken });
+        await request(`/api/applications/${testAppThreeId}/shortlist`, { method: 'PATCH', token: hrToken });
+        const candTwoIvThree = await request('/api/interviews', {
+            method: 'POST',
+            token: hrToken,
+            body: {
+                application_id: testAppThreeId,
+                interviewer_id: 2,
+                scheduled_at: '2026-12-01 10:00:00',
+                type: 'TECHNICAL'
+            }
+        });
+        await request(`/api/interviews/${candTwoIvThree.data.data.id}/evaluate`, {
+            method: 'PUT',
+            token: hrToken,
+            body: { overall_rating: 9, result: 'PASS' }
+        });
+        await request(`/api/applications/${testAppThreeId}/select`, { method: 'PATCH', token: hrToken });
+
+        const candTwoOfferRes = await request('/api/offers', {
+            method: 'POST',
+            token: hrToken,
+            body: {
+                application_id: testAppThreeId,
+                salary: 95000,
+                offer_date: new Date().toISOString().split('T')[0],
+                joining_date: '2027-01-15',
+                expiry_date: '2027-02-15'
+            }
+        });
+        testOfferThreeId = candTwoOfferRes.data?.data?.id;
+
+        // Candidate declines own offer
+        const declineRes = await request(`/api/candidate/applications/${testAppThreeId}/reject-offer`, {
+            method: 'POST',
+            token: candidateTwoToken
+        });
+        if (declineRes.status === 200 && declineRes.data?.data?.offer?.status === 'REJECTED' && declineRes.data?.data?.application?.status === 'REJECTED') {
+            logPass('Candidate declines own offer', 'Offer and application marked as REJECTED');
+        } else {
+            logFail('Candidate declines own offer', declineRes.data?.message);
+        }
+
+        // 39. Declined offer cannot be accepted
+        const declinedAcceptRes = await request(`/api/candidate/applications/${testAppThreeId}/accept-offer`, {
+            method: 'POST',
+            token: candidateTwoToken
+        });
+        if (declinedAcceptRes.status === 400) {
+            logPass('Declined offer cannot be accepted', 'HTTP 400 accept blocked for declined offer');
+        } else {
+            logFail('Declined offer cannot be accepted', `Expected 400, got ${declinedAcceptRes.status}`);
+        }
+
+        // 40. Declined offer cannot be declined again
+        const reDeclineRes = await request(`/api/candidate/applications/${testAppThreeId}/reject-offer`, {
+            method: 'POST',
+            token: candidateTwoToken
+        });
+        if (reDeclineRes.status === 400) {
+            logPass('Declined offer cannot be declined again', 'HTTP 400 re-decline blocked');
+        } else {
+            logFail('Declined offer cannot be declined again', `Expected 400, got ${reDeclineRes.status}`);
+        }
+
+        // 41. HR sees DECLINED / REJECTED state
+        const hrOfferThreeRes = await request(`/api/offers/${testOfferThreeId}`, { token: hrToken });
+        const hrAppThreeRes = await request(`/api/applications/${testAppThreeId}`, { token: hrToken });
+        if (hrOfferThreeRes.data?.data?.status === 'REJECTED' && hrAppThreeRes.data?.data?.status === 'REJECTED') {
+            logPass('HR sees DECLINED/rejected state after candidate decline', 'Offer: REJECTED, App: REJECTED');
+        } else {
+            logFail('HR sees DECLINED/rejected state after candidate decline', `Offer: ${hrOfferThreeRes.data?.data?.status}, App: ${hrAppThreeRes.data?.data?.status}`);
+        }
+
+        // 42. Selection before interview PASS remains blocked
+        const [failJobResult] = await pool.execute(
+            `INSERT INTO jobs (title, department, description, skills, experience_required, location, employment_type, deadline, status, created_by)
+             VALUES ('Junior Analyst', 'Analytics', 'Test description', 'Excel, SQL', '1 year', 'Remote', 'Full-time', '2027-01-01', 'PUBLISHED', 1)`
+        );
+        const failJobId = failJobResult.insertId;
+        const failAppRes = await request('/api/candidate/apply', {
+            method: 'POST',
+            token: candidateToken,
+            body: { job_id: failJobId }
+        });
+        const failAppId = failAppRes.data?.data?.id;
+        await request(`/api/applications/${failAppId}/screen`, { method: 'PATCH', token: hrToken });
+        await request(`/api/applications/${failAppId}/shortlist`, { method: 'PATCH', token: hrToken });
+        const failIv = await request('/api/interviews', {
+            method: 'POST',
+            token: hrToken,
+            body: {
+                application_id: failAppId,
+                interviewer_id: 2,
+                scheduled_at: '2026-12-05 10:00:00',
+                type: 'TECHNICAL'
+            }
+        });
+        await request(`/api/interviews/${failIv.data.data.id}/evaluate`, {
+            method: 'PUT',
+            token: hrToken,
+            body: { overall_rating: 2, result: 'FAIL' }
+        });
+        const failSelectRes = await request(`/api/applications/${failAppId}/select`, { method: 'PATCH', token: hrToken });
+        if (failSelectRes.status === 400) {
+            logPass('Selection before interview PASS remains blocked', 'HTTP 400 selection blocked for interview FAIL');
+        } else {
+            logFail('Selection before interview PASS remains blocked', `Expected 400, got ${failSelectRes.status}`);
+        }
+
+        // Clean up failJobId and failAppId
+        await pool.execute('DELETE FROM interviews WHERE application_id = ?', [failAppId]);
+        await pool.execute('DELETE FROM applications WHERE id = ?', [failAppId]);
+        await pool.execute('DELETE FROM jobs WHERE id = ?', [failJobId]);
+
+        // 43. Rejected applications cannot continue
+        const contRes = await request(`/api/applications/${testAppThreeId}/screen`, { method: 'PATCH', token: hrToken });
+        if (contRes.status === 400) {
+            logPass('Rejected applications cannot continue', 'HTTP 400 pipeline progression blocked for REJECTED application');
+        } else {
+            logFail('Rejected applications cannot continue', `Expected 400, got ${contRes.status}`);
+        }
+
+        // 44. Existing rejection flow still works
         let rejectAppId = testAppTwoId;
-        // Move testAppTwoId to REJECTED by HR
         const rejectRes = await request(`/api/applications/${rejectAppId}/reject`, {
             method: 'PATCH',
             token: hrToken
@@ -601,6 +755,7 @@ async function runCandidateTests() {
         try {
             console.log('Cleaning up temporary candidate test records...');
             if (testOfferId) await pool.execute('DELETE FROM offers WHERE id = ?', [testOfferId]);
+            if (testOfferThreeId) await pool.execute('DELETE FROM offers WHERE id = ?', [testOfferThreeId]);
             if (testAppId) {
                 await pool.execute('DELETE FROM interviews WHERE application_id = ?', [testAppId]);
                 await pool.execute('DELETE FROM offers WHERE application_id = ?', [testAppId]);
@@ -611,7 +766,13 @@ async function runCandidateTests() {
                 await pool.execute('DELETE FROM offers WHERE application_id = ?', [testAppTwoId]);
                 await pool.execute('DELETE FROM applications WHERE id = ?', [testAppTwoId]);
             }
+            if (testAppThreeId) {
+                await pool.execute('DELETE FROM interviews WHERE application_id = ?', [testAppThreeId]);
+                await pool.execute('DELETE FROM offers WHERE application_id = ?', [testAppThreeId]);
+                await pool.execute('DELETE FROM applications WHERE id = ?', [testAppThreeId]);
+            }
             if (testJobId) await pool.execute('DELETE FROM jobs WHERE id = ?', [testJobId]);
+            if (testJobTwoId) await pool.execute('DELETE FROM jobs WHERE id = ?', [testJobTwoId]);
             if (testClosedJobId) await pool.execute('DELETE FROM jobs WHERE id = ?', [testClosedJobId]);
             if (candidateUser?.id) {
                 await pool.execute('DELETE FROM candidates WHERE user_id = ?', [candidateUser.id]);

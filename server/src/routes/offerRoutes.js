@@ -33,18 +33,20 @@ router.get(
     offerController.getOfferById
 );
 
-// Candidate / HR acceptance and rejection of offer
+// Administrative acceptance and rejection of offer (HR/Admin)
 router.patch(
     '/:id/accept',
     validateParamId('id'),
-    optionalAuthenticate,
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
     offerController.acceptOffer
 );
 
 router.patch(
     '/:id/reject',
     validateParamId('id'),
-    optionalAuthenticate,
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
     offerController.rejectOffer
 );
 

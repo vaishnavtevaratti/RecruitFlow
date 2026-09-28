@@ -63,8 +63,13 @@ export default function StatusBadge({ status }) {
       icon = 'bi-trophy-fill';
       break;
     case 'REJECTED':
+    case 'DECLINED':
       badgeClass = 'badge-rejected';
       icon = 'bi-x-octagon-fill';
+      break;
+    case 'EXPIRED':
+      badgeClass = 'badge-closed';
+      icon = 'bi-hourglass-bottom';
       break;
 
     // Interview results

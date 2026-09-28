@@ -40,7 +40,7 @@ export default function CandidateLogin() {
 
   return (
     <div className="login-wrapper">
-      <div className="login-card shadow-lg p-4 p-md-5" style={{ maxWidth: '440px' }}>
+      <div className="login-card shadow-lg p-4 p-md-5" style={{ maxWidth: '440px', width: '100%' }}>
         <div className="text-center mb-4">
           <div className="brand-icon mx-auto mb-2" style={{ width: '48px', height: '48px' }}>
             <i className="bi bi-person-badge-fill fs-4 text-white"></i>
