@@ -116,7 +116,7 @@ async function apply(req, res, next) {
 /**
  * POST /api/candidate/applications/:id/accept-offer
  * Candidate accepts job offer.
- * Performs atomic transaction: offers.status = 'ACCEPTED', applications.status = 'HIRED'.
+ * Performs atomic transaction: offers.status = 'ACCEPTED', applications.status = 'OFFER_ACCEPTED'.
  */
 async function acceptOffer(req, res, next) {
     try {
@@ -125,7 +125,7 @@ async function acceptOffer(req, res, next) {
 
         res.status(200).json({
             success: true,
-            message: 'Offer accepted successfully! Congratulations, your status is now HIRED!',
+            message: 'Offer accepted. The hiring team will confirm your onboarding shortly.',
             data: result
         });
     } catch (err) {

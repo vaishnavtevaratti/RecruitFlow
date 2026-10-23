@@ -106,7 +106,7 @@ HIRED
 - **Evaluation Invariant**: Interview evaluation (`PASS` / `FAIL`) updates application to `INTERVIEWED`.
 - **Selection Invariant**: Candidate must be in `INTERVIEWED` status with latest interview `PASS` to advance to `SELECTED`.
 - **Offer Invariant**: Only `SELECTED` candidates can receive an offer (`OFFER_SENT`).
-- **Hiring Invariant**: Valid `SENT` non-expired offer accepted moves offer to `ACCEPTED` and application to `OFFER_ACCEPTED` → `HIRED`.
+- **Hiring Invariant**: Valid `SENT` non-expired offer accepted moves offer to `ACCEPTED` and application to `OFFER_ACCEPTED`; HR then confirms `HIRED` via `PATCH /api/applications/:id/hire`.
 
 ---
 
@@ -142,19 +142,30 @@ HIRED
 - `PATCH /api/applications/:id/shortlist` — Moves application from `SCREENING` → `SHORTLISTED` (HR/Admin).
 - `PATCH /api/applications/:id/reject` — Rejects application from active state (HR/Admin).
 - `PATCH /api/applications/:id/select` — Advances candidate from `INTERVIEWED` (with `PASS`) → `SELECTED` (HR/Admin).
+- `PATCH /api/applications/:id/hire` — Completes hiring: `OFFER_ACCEPTED` (offer `ACCEPTED`) → `HIRED` (HR/Admin).
+- `GET /api/applications/:id/skill-match` — Rule-based, advisory job/candidate skill comparison (HR/Admin). Never changes status.
 
 ### Interviews
 - `POST /api/interviews` — Schedules interview for `SHORTLISTED` application (HR/Admin).
-- `GET /api/interviews` — Lists interviews (HR sees all; Interviewer sees assigned).
-- `GET /api/interviews/:id` — Fetches interview details.
+- `GET /api/interviews` — Lists interviews (HR/Admin see all; Interviewer sees assigned; candidates are denied).
+- `GET /api/interviews/interviewers` — Staff accounts assignable as interviewers (HR/Admin).
+- `GET /api/interviews/:id` — Fetches interview details (Interviewer: own interviews only).
+- `PATCH /api/interviews/:id/reschedule` — Moves a pending interview to a new future time (HR/Admin).
 - `PUT /api/interviews/:id/evaluate` — Submits 1-10 scores, feedback, and `PASS`/`FAIL` result (Interviewer/HR).
 
 ### Offers & Hiring
 - `POST /api/offers` — Generates job offer for `SELECTED` candidate (HR/Admin).
 - `GET /api/offers` — Lists offers (HR/Admin; supports `?status=`).
 - `GET /api/offers/:id` — Fetches offer details (HR/Admin).
-- `PATCH /api/offers/:id/accept` — Accepts offer and transitions candidate to `HIRED`.
-- `PATCH /api/offers/:id/reject` — Declines offer and marks application `REJECTED`.
+- `PATCH /api/offers/:id/accept` — HR records an acceptance received outside the portal: offer `ACCEPTED`, application `OFFER_ACCEPTED` (hiring is a separate step).
+- `PATCH /api/offers/:id/reject` — HR records a decline: offer and application `REJECTED`.
+- Offers past their expiry date are returned with status `EXPIRED` and cannot be accepted or declined.
+
+### Candidate Portal (CANDIDATE role; identity from JWT)
+- `GET /api/candidate/me`, `PUT /api/candidate/profile`, `GET /api/candidate/dashboard`
+- `GET /api/candidate/applications`, `GET /api/candidate/applications/:id` (own only, else 403)
+- `POST /api/candidate/apply` — `{ job_id }`
+- `POST /api/candidate/applications/:id/accept-offer` → `OFFER_ACCEPTED`; `POST /api/candidate/applications/:id/reject-offer` → `REJECTED`
 
 ### Dashboard Analytics
 - `GET /api/dashboard/stats` — Executive dashboard metrics and funnel breakdown queried directly from MySQL (HR/Admin).

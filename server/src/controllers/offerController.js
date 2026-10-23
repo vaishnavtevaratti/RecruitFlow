@@ -75,7 +75,8 @@ async function getOfferById(req, res, next) {
 
 /**
  * PATCH /api/offers/:id/accept
- * Candidate accepts job offer; marks offer ACCEPTED and application HIRED.
+ * HR records a candidate acceptance received outside the portal; marks offer ACCEPTED
+ * and application OFFER_ACCEPTED. Hiring is a separate HR step (PATCH /applications/:id/hire).
  */
 async function acceptOffer(req, res, next) {
     try {
@@ -84,7 +85,7 @@ async function acceptOffer(req, res, next) {
 
         res.status(200).json({
             success: true,
-            message: 'Offer accepted successfully! Candidate has officially reached status HIRED.',
+            message: 'Offer acceptance recorded. Application moved to OFFER_ACCEPTED.',
             data: accepted
         });
     } catch (err) {
@@ -94,7 +95,7 @@ async function acceptOffer(req, res, next) {
 
 /**
  * PATCH /api/offers/:id/reject
- * Candidate rejects job offer; marks offer REJECTED and application REJECTED.
+ * HR records a candidate decline received outside the portal; marks offer REJECTED and application REJECTED.
  */
 async function rejectOffer(req, res, next) {
     try {

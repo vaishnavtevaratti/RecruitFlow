@@ -9,7 +9,10 @@
     "db:setup": "node scripts/setupDatabase.js",
     "db:verify": "node scripts/verifyDatabase.js",
     "verify-db": "node scripts/verifyDatabase.js",
-    "test-api": "node scripts/testApi.js"
+    "test-api": "node scripts/testApi.js",
+    "test-candidate": "node scripts/testCandidateApi.js",
+    "test-security": "node scripts/testSecurity.js",
+    "test-skill-match": "node scripts/testSkillMatch.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

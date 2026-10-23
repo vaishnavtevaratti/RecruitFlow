@@ -69,9 +69,57 @@ function validateParamId(paramName = 'id') {
     };
 }
 
+/**
+ * True when value is an absolute http(s) URL. Blocks javascript:/data: links
+ * that would otherwise be rendered as clickable hrefs in the HR portal.
+ */
+function isHttpUrl(value) {
+    if (typeof value !== 'string' || value.length > 500) return false;
+    try {
+        const url = new URL(value.trim());
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Builds a 400 error for service-level validation failures.
+ */
+function badRequest(message) {
+    const err = new Error(message);
+    err.statusCode = 400;
+    return err;
+}
+
+/**
+ * Validates optional/required string fields against max lengths.
+ * @param {Object} data - source object
+ * @param {Object} rules - { field: { max, required, label } }
+ * @throws 400 error describing the first invalid field
+ */
+function assertStringFields(data, rules) {
+    for (const [field, rule] of Object.entries(rules)) {
+        const value = data[field];
+        const label = rule.label || field;
+        if (value === undefined || value === null || value === '') {
+            if (rule.required) throw badRequest(`${label} is required.`);
+            continue;
+        }
+        if (typeof value !== 'string') throw badRequest(`${label} must be text.`);
+        if (rule.required && value.trim() === '') throw badRequest(`${label} is required.`);
+        if (value.trim().length > rule.max) {
+            throw badRequest(`${label} must be at most ${rule.max} characters.`);
+        }
+    }
+}
+
 module.exports = {
     requireFields,
     isValidEmail,
     validateEmailField,
-    validateParamId
+    validateParamId,
+    isHttpUrl,
+    badRequest,
+    assertStringFields
 };

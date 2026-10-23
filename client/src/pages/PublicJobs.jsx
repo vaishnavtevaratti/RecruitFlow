@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import { jobService } from '../services/jobService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate, formatCurrency } from '../utils/formatters';
+import { formatDate, formatSalaryRange, getErrorMessage, splitSkills } from '../utils/formatters';
 
 export default function PublicJobs() {
   const [jobs, setJobs] = useState([]);
@@ -28,7 +28,7 @@ export default function PublicJobs() {
         setJobs(res.data);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch active career opportunities.');
+      setError(getErrorMessage(err, 'Failed to fetch open positions.'));
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export default function PublicJobs() {
   };
 
   return (
-    <div className="bg-light min-vh-100">
+    <div className="public-shell">
       {/* Public Header */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark py-3 px-4 shadow-sm">
         <div className="container">
@@ -58,8 +58,11 @@ export default function PublicJobs() {
             <Link to="/application-status" className="btn btn-outline-light btn-sm">
               <i className="bi bi-search me-1"></i> Check Status
             </Link>
-            <Link to="/login" className="btn btn-primary btn-sm">
-              <i className="bi bi-shield-lock me-1"></i> Staff Portal
+            <Link to="/candidate/login" className="btn btn-primary btn-sm">
+              <i className="bi bi-person me-1"></i> Candidate Sign In
+            </Link>
+            <Link to="/login" className="btn btn-outline-light btn-sm d-none d-sm-inline-block">
+              Staff
             </Link>
           </div>
         </div>
@@ -122,7 +125,7 @@ export default function PublicJobs() {
                     <div className="d-flex flex-wrap gap-3 text-muted small mb-3">
                       <span><i className="bi bi-geo-alt me-1"></i>{job.location}</span>
                       <span><i className="bi bi-clock me-1"></i>{job.employment_type}</span>
-                      <span><i className="bi bi-cash-stack me-1"></i>{formatCurrency(job.salary_min)} - {formatCurrency(job.salary_max)}</span>
+                      <span><i className="bi bi-cash-stack me-1"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
                     </div>
 
                     <p className="text-secondary small mb-3" style={{ lineHeight: '1.6' }}>
@@ -130,10 +133,8 @@ export default function PublicJobs() {
                     </p>
 
                     <div className="d-flex flex-wrap gap-1 mb-4">
-                      {job.skills.split(',').map((s, idx) => (
-                        <span key={idx} className="badge bg-white text-dark border small">
-                          {s.trim()}
-                        </span>
+                      {splitSkills(job.skills).map((s) => (
+                        <span key={s} className="chip">{s}</span>
                       ))}
                     </div>
                   </div>

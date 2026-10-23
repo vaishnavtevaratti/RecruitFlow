@@ -1,5 +1,6 @@
 /**
- * RecruitFlow — Executive Dashboard
+ * RecruitFlow — HR Dashboard
+ * Every number on this page comes from GET /api/dashboard/stats (live MySQL counts).
  */
 
 import React, { useState, useEffect } from 'react';
@@ -7,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { dashboardService } from '../services/dashboardService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
+import { getErrorMessage } from '../utils/formatters';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -18,11 +20,9 @@ export default function Dashboard() {
       setLoading(true);
       setError('');
       const res = await dashboardService.getStats();
-      if (res.success && res.data) {
-        setStats(res.data);
-      }
+      setStats(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load recruitment dashboard analytics.');
+      setError(getErrorMessage(err, 'Failed to load recruitment dashboard metrics.'));
     } finally {
       setLoading(false);
     }
@@ -37,119 +37,112 @@ export default function Dashboard() {
   if (!stats) return null;
 
   const statCards = [
-    { label: 'Total Jobs', val: stats.totalJobs, icon: 'bi-briefcase-fill', bg: '#eff6ff', color: '#2563eb' },
-    { label: 'Active Jobs', val: stats.activeJobs, icon: 'bi-check2-circle', bg: '#ecfdf5', color: '#059669' },
-    { label: 'Candidates', val: stats.totalCandidates, icon: 'bi-people-fill', bg: '#f5f3ff', color: '#7c3aed' },
-    { label: 'Applications', val: stats.totalApplications, icon: 'bi-file-earmark-person-fill', bg: '#fffbeb', color: '#d97706' },
-    { label: 'Shortlisted', val: stats.shortlisted, icon: 'bi-star-fill', bg: '#fdf4ff', color: '#c026d3' },
-    { label: 'Interviews', val: stats.interviews, icon: 'bi-calendar-check-fill', bg: '#e0f2fe', color: '#0284c7' },
-    { label: 'Selected', val: stats.selected, icon: 'bi-award-fill', bg: '#ecfeff', color: '#0d9488' },
-    { label: 'Hired', val: stats.hired, icon: 'bi-trophy-fill', bg: '#f0fdf4', color: '#16a34a' }
+    { label: 'Open Jobs', val: stats.activeJobs, sub: `${stats.draftJobs} draft · ${stats.closedJobs} closed`, icon: 'bi-briefcase', tone: 'blue', to: '/jobs?status=PUBLISHED' },
+    { label: 'Applications', val: stats.totalApplications, sub: `${stats.totalCandidates} candidates`, icon: 'bi-file-earmark-person', tone: 'violet', to: '/applications' },
+    { label: 'Awaiting Screening', val: stats.pendingScreening, sub: 'Applied or in screening', icon: 'bi-funnel', tone: 'amber', to: '/applications?status=APPLIED' },
+    { label: 'Interviews Pending', val: stats.pendingInterviews, sub: `${stats.interviews} total rounds`, icon: 'bi-calendar-event', tone: 'cyan', to: '/interviews' },
+    { label: 'Active Offers', val: stats.offersBreakdown?.sent || 0, sub: `${stats.offersBreakdown?.expired || 0} expired`, icon: 'bi-envelope-paper', tone: 'pink', to: '/offers?status=SENT' },
+    { label: 'Ready to Hire', val: stats.awaitingHire, sub: 'Offer accepted', icon: 'bi-person-check', tone: 'teal', to: '/applications?status=OFFER_ACCEPTED' },
+    { label: 'Hired', val: stats.hired, sub: 'Completed hires', icon: 'bi-trophy', tone: 'green', to: '/applications?status=HIRED' },
+    { label: 'Rejected', val: stats.funnel?.rejected || 0, sub: 'Closed applications', icon: 'bi-x-octagon', tone: 'red', to: '/applications?status=REJECTED' }
   ];
 
+  const funnel = stats.funnel || {};
   const funnelSteps = [
-    { stage: 'Applied', count: stats.funnel?.applied || 0, icon: 'bi-inbox' },
-    { stage: 'Screening', count: stats.funnel?.screening || 0, icon: 'bi-search' },
-    { stage: 'Shortlisted', count: stats.funnel?.shortlisted || 0, icon: 'bi-star' },
-    { stage: 'Interviewed', count: stats.funnel?.interviewed || 0, icon: 'bi-chat-dots' },
-    { stage: 'Selected', count: stats.funnel?.selected || 0, icon: 'bi-award' },
-    { stage: 'Hired', count: stats.funnel?.hired || 0, icon: 'bi-trophy' }
+    { stage: 'Applied', count: funnel.applied },
+    { stage: 'Screening', count: funnel.screening },
+    { stage: 'Shortlisted', count: funnel.shortlisted },
+    { stage: 'Interview', count: (funnel.interviewScheduled || 0) + (funnel.interviewed || 0) },
+    { stage: 'Selected', count: funnel.selected },
+    { stage: 'Offer', count: (funnel.offerSent || 0) + (funnel.offerAccepted || 0) },
+    { stage: 'Hired', count: funnel.hired }
   ];
+  const maxFunnel = Math.max(1, ...funnelSteps.map((s) => s.count || 0));
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Recruitment Dashboard</h1>
-          <p className="page-subtitle">Real-time overview of candidate pipelines and hiring funnel metrics</p>
+          <p className="page-subtitle">Live overview of openings, pipeline stages, and hiring outcomes</p>
         </div>
         <div className="d-flex gap-2">
-          <Link to="/jobs/new" className="btn btn-primary d-flex align-items-center gap-2">
-            <i className="bi bi-plus-lg"></i>
-            <span>Create Job</span>
+          <button type="button" className="btn btn-light border" onClick={fetchStats} aria-label="Refresh metrics">
+            <i className="bi bi-arrow-clockwise"></i>
+          </button>
+          <Link to="/applications" className="btn btn-outline-primary">
+            <i className="bi bi-kanban me-1"></i> View Pipeline
           </Link>
-          <Link to="/applications" className="btn btn-outline-secondary d-flex align-items-center gap-2">
-            <i className="bi bi-list-task"></i>
-            <span>View Pipeline</span>
+          <Link to="/jobs/new" className="btn btn-primary">
+            <i className="bi bi-plus-lg me-1"></i> Create Job
           </Link>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
       <div className="row g-3 mb-4">
-        {statCards.map((sc, i) => (
-          <div key={i} className="col-12 col-sm-6 col-xl-3">
-            <div className="stat-card shadow-sm h-100">
-              <div className="stat-icon-wrapper" style={{ backgroundColor: sc.bg, color: sc.color }}>
+        {statCards.map((sc) => (
+          <div key={sc.label} className="col-12 col-sm-6 col-xl-3">
+            <Link to={sc.to} className="stat-card h-100 text-decoration-none">
+              <div className={`stat-icon-wrapper tone-${sc.tone}`}>
                 <i className={`bi ${sc.icon}`}></i>
               </div>
-              <div>
-                <div className="stat-value">{sc.val}</div>
+              <div className="min-w-0">
                 <div className="stat-label">{sc.label}</div>
+                <div className="stat-value">{sc.val}</div>
+                <div className="stat-sub">{sc.sub}</div>
               </div>
-            </div>
+            </Link>
           </div>
         ))}
       </div>
 
-      {/* Recruitment Funnel Section */}
       <div className="card-rf p-4 mb-4">
-        <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
-          <h5 className="fw-bold mb-0 text-dark">
-            <i className="bi bi-filter-circle-fill text-primary me-2"></i>
-            Recruitment Conversion Funnel
-          </h5>
-          <span className="badge bg-light text-muted border">Live Database Metrics</span>
+        <div className="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <h2 className="section-title mb-0">Pipeline by stage</h2>
+            <p className="text-muted small mb-0">Applications currently at each stage of the workflow</p>
+          </div>
         </div>
-        <p className="text-muted small mb-3">
-          Pipeline stage transitions from initial applicant ingestion to final corporate onboarding:
-        </p>
-
-        <div className="funnel-container">
-          {funnelSteps.map((fs, idx) => (
-            <React.Fragment key={idx}>
-              <div className="funnel-step shadow-sm">
-                <div className="mb-1 text-primary">
-                  <i className={`bi ${fs.icon} fs-5`}></i>
-                </div>
-                <div className="count">{fs.count}</div>
-                <div className="label">{fs.stage}</div>
+        <div className="funnel-bars">
+          {funnelSteps.map((fs) => (
+            <div key={fs.stage} className="funnel-bar-row">
+              <div className="funnel-bar-label">{fs.stage}</div>
+              <div className="funnel-bar-track">
+                <div className="funnel-bar-fill" style={{ width: `${((fs.count || 0) / maxFunnel) * 100}%` }}></div>
               </div>
-              {idx < funnelSteps.length - 1 && (
-                <div className="text-muted px-1 d-none d-md-block">
-                  <i className="bi bi-arrow-right fs-4 text-secondary"></i>
-                </div>
-              )}
-            </React.Fragment>
+              <div className="funnel-bar-count">{fs.count || 0}</div>
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Breakdown Panels */}
       <div className="row g-4">
         <div className="col-12 col-lg-6">
           <div className="card-rf p-4 h-100">
-            <h5 className="fw-bold mb-3 border-bottom pb-2 text-dark">
-              <i className="bi bi-mic-fill text-primary me-2"></i>
-              Interview Rounds Breakdown
-            </h5>
-            <div className="row g-3">
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-warning">{stats.interviewsBreakdown?.pending || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Pending</small>
+            <h2 className="section-title">Interview outcomes</h2>
+            <div className="row g-3 text-center">
+              <div className="col-4">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-warning">{stats.interviewsBreakdown?.pending || 0}</div>
+                  <div className="mini-metric-label">Pending</div>
+                </div>
               </div>
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-success">{stats.interviewsBreakdown?.passed || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Passed</small>
+              <div className="col-4">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-success">{stats.interviewsBreakdown?.passed || 0}</div>
+                  <div className="mini-metric-label">Passed</div>
+                </div>
               </div>
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-danger">{stats.interviewsBreakdown?.failed || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Failed</small>
+              <div className="col-4">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-danger">{stats.interviewsBreakdown?.failed || 0}</div>
+                  <div className="mini-metric-label">Failed</div>
+                </div>
               </div>
             </div>
             <div className="mt-4 text-end">
               <Link to="/interviews" className="btn btn-sm btn-outline-primary">
-                Manage All Interviews <i className="bi bi-arrow-right"></i>
+                Manage interviews <i className="bi bi-arrow-right"></i>
               </Link>
             </div>
           </div>
@@ -157,27 +150,36 @@ export default function Dashboard() {
 
         <div className="col-12 col-lg-6">
           <div className="card-rf p-4 h-100">
-            <h5 className="fw-bold mb-3 border-bottom pb-2 text-dark">
-              <i className="bi bi-file-earmark-check-fill text-primary me-2"></i>
-              Offers & Acceptances
-            </h5>
-            <div className="row g-3">
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-primary">{stats.offersBreakdown?.sent || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Sent / Active</small>
+            <h2 className="section-title">Offer outcomes</h2>
+            <div className="row g-3 text-center">
+              <div className="col-3">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-primary">{stats.offersBreakdown?.sent || 0}</div>
+                  <div className="mini-metric-label">Awaiting</div>
+                </div>
               </div>
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-success">{stats.offersBreakdown?.accepted || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Accepted (Hired)</small>
+              <div className="col-3">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-success">{stats.offersBreakdown?.accepted || 0}</div>
+                  <div className="mini-metric-label">Accepted</div>
+                </div>
               </div>
-              <div className="col-4 text-center p-3 rounded-3 bg-light border">
-                <div className="fs-3 fw-bold text-secondary">{stats.offersBreakdown?.rejected || 0}</div>
-                <small className="text-muted text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Declined</small>
+              <div className="col-3">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-danger">{stats.offersBreakdown?.rejected || 0}</div>
+                  <div className="mini-metric-label">Declined</div>
+                </div>
+              </div>
+              <div className="col-3">
+                <div className="mini-metric">
+                  <div className="mini-metric-value text-secondary">{stats.offersBreakdown?.expired || 0}</div>
+                  <div className="mini-metric-label">Expired</div>
+                </div>
               </div>
             </div>
             <div className="mt-4 text-end">
               <Link to="/offers" className="btn btn-sm btn-outline-primary">
-                Manage Offers <i className="bi bi-arrow-right"></i>
+                Manage offers <i className="bi bi-arrow-right"></i>
               </Link>
             </div>
           </div>

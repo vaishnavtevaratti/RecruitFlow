@@ -53,7 +53,9 @@ async function getCandidateById(req, res, next) {
  */
 async function createCandidate(req, res, next) {
     try {
-        const candidate = await recruitmentService.createCandidate(req.body);
+        // user_id is never accepted from the client; account linking happens at candidate signup
+        const { name, email, phone, education, skills, experience, resume_url } = req.body;
+        const candidate = await recruitmentService.createCandidate({ name, email, phone, education, skills, experience, resume_url });
 
         res.status(201).json({
             success: true,

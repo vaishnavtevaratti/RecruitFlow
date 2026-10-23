@@ -23,5 +23,15 @@ export const interviewService = {
   async evaluateInterview(id, evaluationData) {
     const response = await api.put(`/interviews/${id}/evaluate`, evaluationData);
     return response.data;
+  },
+
+  async rescheduleInterview(id, data) {
+    const response = await api.patch(`/interviews/${id}/reschedule`, data);
+    return response.data;
+  },
+
+  async getInterviewers() {
+    const response = await api.get('/interviews/interviewers');
+    return response.data;
   }
 };

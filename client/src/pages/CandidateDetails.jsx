@@ -7,7 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { candidateService } from '../services/candidateService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate } from '../utils/formatters';
+import { formatDate, getErrorMessage, splitSkills } from '../utils/formatters';
 
 export default function CandidateDetails() {
   const { id } = useParams();
@@ -25,7 +25,7 @@ export default function CandidateDetails() {
           setCandidate(res.data);
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch candidate details.');
+        setError(getErrorMessage(err, 'Failed to fetch candidate details.'));
       } finally {
         setLoading(false);
       }
@@ -93,10 +93,9 @@ export default function CandidateDetails() {
           <div className="card-rf p-4 mb-4">
             <h5 className="fw-bold mb-3 border-bottom pb-2">Skills & Technical Proficiencies</h5>
             <div className="d-flex flex-wrap gap-2 mb-4">
-              {candidate.skills.split(',').map((skill, idx) => (
-                <span key={idx} className="badge bg-light text-primary border px-3 py-2 fs-6">
-                  {skill.trim()}
-                </span>
+              {splitSkills(candidate.skills).length === 0 && <span className="text-muted small">No skills listed.</span>}
+              {splitSkills(candidate.skills).map((skill) => (
+                <span key={skill} className="chip chip-primary">{skill}</span>
               ))}
             </div>
 

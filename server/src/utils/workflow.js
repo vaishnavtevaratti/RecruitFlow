@@ -3,6 +3,8 @@
  * Enforces business logic and valid status transitions across all operations.
  */
 
+const { isPastDate } = require('./dates');
+
 const JOB_STATES = Object.freeze({
     DRAFT: 'DRAFT',
     PUBLISHED: 'PUBLISHED',
@@ -84,14 +86,9 @@ function validateJobAcceptsApplications(job) {
         return { valid: false, message: `Job is not open for applications. Current status: ${job.status}.` };
     }
 
-    // Check application deadline
-    if (job.deadline) {
-        const deadlineDate = new Date(job.deadline);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (deadlineDate < today) {
-            return { valid: false, message: 'Application deadline for this job opening has passed.' };
-        }
+    // Check application deadline (the deadline day itself is still open)
+    if (job.deadline && isPastDate(job.deadline)) {
+        return { valid: false, message: 'Application deadline for this job opening has passed.' };
     }
 
     return { valid: true };
@@ -147,6 +144,9 @@ function validateInterviewEvaluation(interview, applicationStatus) {
     if (!interview) {
         return { valid: false, message: 'Interview record not found.' };
     }
+    if (interview.result !== INTERVIEW_RESULTS.PENDING) {
+        return { valid: false, message: `Interview has already been evaluated (result: ${interview.result}).` };
+    }
     if (applicationStatus === APPLICATION_STATES.REJECTED) {
         return { valid: false, message: 'Cannot evaluate interview for a rejected application.' };
     }
@@ -186,72 +186,87 @@ function validateOfferCreation(applicationStatus) {
 }
 
 /**
- * Validates offer acceptance: offer must be SENT and not expired.
+ * True when a SENT offer is past its expiry date (the expiry day itself is still valid).
+ * Offers are never auto-updated in the database; expiry is evaluated on read and on action.
  */
-function validateOfferAcceptance(offer) {
+function isOfferExpired(offer) {
+    if (!offer) return false;
+    if (offer.status === OFFER_STATES.EXPIRED) return true;
+    return offer.status === OFFER_STATES.SENT && isPastDate(offer.expiry_date);
+}
+
+/**
+ * Shared checks for a candidate response (accept/decline) to an offer.
+ */
+function validateOfferResponse(offer, applicationStatus, verb) {
     if (!offer) {
         return { valid: false, message: 'Offer record not found.' };
     }
     if (offer.status === OFFER_STATES.ACCEPTED) {
-        return { valid: false, message: 'Offer has already been accepted.' };
+        return { valid: false, message: verb === 'accepted' ? 'Offer has already been accepted.' : 'Cannot decline an offer that has already been accepted.' };
     }
     if (offer.status === OFFER_STATES.REJECTED) {
-        return { valid: false, message: 'Cannot accept an offer that was previously rejected.' };
+        return { valid: false, message: verb === 'accepted' ? 'Cannot accept an offer that was previously declined.' : 'Offer has already been declined.' };
+    }
+    if (isOfferExpired(offer)) {
+        return { valid: false, message: `Offer has expired and can no longer be ${verb}.` };
     }
     if (offer.status !== OFFER_STATES.SENT) {
-        return { valid: false, message: `Offer must be in SENT status to be accepted. Current status: ${offer.status}.` };
+        return { valid: false, message: `Offer must be in SENT status to be ${verb}. Current status: ${offer.status}.` };
     }
-
-    if (offer.expiry_date) {
-        const expiry = new Date(offer.expiry_date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (expiry < today) {
-            return { valid: false, message: 'Offer has expired and can no longer be accepted.' };
-        }
+    if (applicationStatus !== undefined && applicationStatus !== APPLICATION_STATES.OFFER_SENT) {
+        return { valid: false, message: `Offer can no longer be ${verb} because the application status is ${applicationStatus}.` };
     }
-
     return { valid: true };
 }
 
 /**
- * Validates offer decline: offer must be SENT, not expired, and not already accepted/rejected.
+ * Validates offer acceptance: offer must be SENT, not expired, and the application must be OFFER_SENT.
  */
-function validateOfferDecline(offer) {
-    if (!offer) {
-        return { valid: false, message: 'Offer record not found.' };
-    }
-    if (offer.status === OFFER_STATES.ACCEPTED) {
-        return { valid: false, message: 'Cannot decline an offer that has already been accepted.' };
-    }
-    if (offer.status === OFFER_STATES.REJECTED) {
-        return { valid: false, message: 'Offer has already been declined.' };
-    }
-    if (offer.status !== OFFER_STATES.SENT) {
-        return { valid: false, message: `Offer must be in SENT status to be declined. Current status: ${offer.status}.` };
-    }
+function validateOfferAcceptance(offer, applicationStatus) {
+    return validateOfferResponse(offer, applicationStatus, 'accepted');
+}
 
-    if (offer.expiry_date) {
-        const expiry = new Date(offer.expiry_date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (expiry < today) {
-            return { valid: false, message: 'Offer has expired and can no longer be declined.' };
-        }
-    }
+/**
+ * Validates offer decline: offer must be SENT, not expired, and the application must be OFFER_SENT.
+ */
+function validateOfferDecline(offer, applicationStatus) {
+    return validateOfferResponse(offer, applicationStatus, 'declined');
+}
 
+/**
+ * Validates final hiring: candidate must have accepted the offer (OFFER_ACCEPTED + offer ACCEPTED).
+ */
+function validateHire(applicationStatus, offer) {
+    if (applicationStatus === APPLICATION_STATES.HIRED) {
+        return { valid: false, message: 'Candidate has already been hired.' };
+    }
+    if (applicationStatus !== APPLICATION_STATES.OFFER_ACCEPTED) {
+        return { valid: false, message: `Only candidates who accepted an offer can be hired. Current status: ${applicationStatus}.` };
+    }
+    if (!offer || offer.status !== OFFER_STATES.ACCEPTED) {
+        return { valid: false, message: 'Hiring requires an accepted offer on record.' };
+    }
     return { valid: true };
 }
 
 /**
- * Validates candidate rejection.
+ * Validates candidate rejection by HR.
+ * An outstanding (unexpired) offer must be answered by the candidate or expire first,
+ * and an accepted offer must be completed through hiring.
  */
-function validateApplicationRejection(currentStatus) {
+function validateApplicationRejection(currentStatus, offer = null) {
     if (currentStatus === APPLICATION_STATES.REJECTED) {
         return { valid: false, message: 'Application is already rejected.' };
     }
     if (currentStatus === APPLICATION_STATES.HIRED) {
         return { valid: false, message: 'Cannot reject a candidate who has already been hired.' };
+    }
+    if (currentStatus === APPLICATION_STATES.OFFER_ACCEPTED) {
+        return { valid: false, message: 'Candidate has accepted the offer. Complete the hiring step instead of rejecting.' };
+    }
+    if (currentStatus === APPLICATION_STATES.OFFER_SENT && offer && !isOfferExpired(offer)) {
+        return { valid: false, message: 'An active offer is awaiting the candidate\'s response. Rejection is allowed once the offer is declined or has expired.' };
     }
     return { valid: true };
 }
@@ -272,5 +287,7 @@ module.exports = {
     validateOfferCreation,
     validateOfferAcceptance,
     validateOfferDecline,
-    validateApplicationRejection
+    validateHire,
+    validateApplicationRejection,
+    isOfferExpired
 };

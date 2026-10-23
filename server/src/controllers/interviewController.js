@@ -31,6 +31,22 @@ async function scheduleInterview(req, res, next) {
 }
 
 /**
+ * GET /api/interviews/interviewers
+ * Lists staff accounts that can be assigned as interviewers (HR/Admin only).
+ */
+async function getInterviewers(req, res, next) {
+    try {
+        const interviewers = await recruitmentService.getInterviewers();
+        res.status(200).json({
+            success: true,
+            data: interviewers
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
  * GET /api/interviews
  * Lists scheduled and completed interviews.
  * HR/Admin views all; Interviewers view their assigned rounds.
@@ -38,8 +54,8 @@ async function scheduleInterview(req, res, next) {
 async function getInterviews(req, res, next) {
     try {
         const interviews = await recruitmentService.getInterviews({
-            interviewerId: req.user ? req.user.id : null,
-            role: req.user ? req.user.role : 'HR'
+            interviewerId: req.user.id,
+            role: req.user.role
         });
 
         res.status(200).json({
@@ -67,9 +83,41 @@ async function getInterviewById(req, res, next) {
             });
         }
 
+        if (req.user.role === 'INTERVIEWER' && interview.interviewer_id !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Forbidden. You can only view interviews assigned to you.'
+            });
+        }
+
         res.status(200).json({
             success: true,
             data: interview
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * PATCH /api/interviews/:id/reschedule
+ * Moves a pending interview to a new date/time (HR/Admin only).
+ */
+async function rescheduleInterview(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const { scheduled_at, meeting_link, interviewer_id, type } = req.body;
+        const updated = await recruitmentService.rescheduleInterview(id, {
+            scheduled_at,
+            meeting_link,
+            interviewer_id,
+            type
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Interview rescheduled successfully.',
+            data: updated
         });
     } catch (err) {
         next(err);
@@ -97,7 +145,9 @@ async function evaluateInterview(req, res, next) {
 
 module.exports = {
     scheduleInterview,
+    getInterviewers,
     getInterviews,
     getInterviewById,
+    rescheduleInterview,
     evaluateInterview
 };

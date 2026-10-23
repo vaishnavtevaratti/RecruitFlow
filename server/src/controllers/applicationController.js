@@ -3,6 +3,7 @@
  */
 
 const recruitmentService = require('../services/recruitmentService');
+const { computeSkillMatch } = require('../services/skillMatchService');
 
 /**
  * POST /api/applications
@@ -19,15 +20,16 @@ async function apply(req, res, next) {
             });
         }
 
-        // Support both candidate nested object or flattened payload
-        const candidateData = candidate || {
-            name,
-            email,
-            phone,
-            education,
-            skills,
-            experience,
-            resume_url
+        // Support both candidate nested object or flattened payload (only whitelisted profile fields)
+        const source = candidate && typeof candidate === 'object' ? candidate : { name, email, phone, education, skills, experience, resume_url };
+        const candidateData = {
+            name: source.name,
+            email: source.email,
+            phone: source.phone,
+            education: source.education,
+            skills: source.skills,
+            experience: source.experience,
+            resume_url: source.resume_url
         };
 
         if (!candidateData.name || !candidateData.email) {
@@ -87,6 +89,14 @@ async function getApplicationById(req, res, next) {
             return res.status(404).json({
                 success: false,
                 message: 'Application not found.'
+            });
+        }
+
+        // Interviewers may only open applications they are assigned to interview
+        if (req.user.role === 'INTERVIEWER' && !(await recruitmentService.isInterviewerAssigned(id, req.user.id))) {
+            return res.status(403).json({
+                success: false,
+                message: 'Forbidden. You are not assigned to an interview for this application.'
             });
         }
 
@@ -176,6 +186,51 @@ async function selectApplication(req, res, next) {
 }
 
 /**
+ * PATCH /api/applications/:id/hire
+ * Completes hiring for a candidate who accepted the offer (OFFER_ACCEPTED -> HIRED).
+ */
+async function hireApplication(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const updated = await recruitmentService.hireApplication(id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Candidate marked as HIRED. Recruitment workflow complete.',
+            data: updated
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * GET /api/applications/:id/skill-match
+ * Rule-based, explainable comparison of job skills vs. candidate profile (HR/Admin).
+ * Advisory only: it never changes the application's status.
+ */
+async function getSkillMatch(req, res, next) {
+    try {
+        const id = Number(req.params.id);
+        const application = await recruitmentService.getApplicationById(id);
+        if (!application) {
+            return res.status(404).json({ success: false, message: 'Application not found.' });
+        }
+        const result = computeSkillMatch(
+            { title: application.job_title, skills: application.job_skills },
+            {
+                skills: application.candidate_skills,
+                experience: application.candidate_experience,
+                education: application.candidate_education
+            }
+        );
+        res.status(200).json({ success: true, data: result });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
  * POST /api/applications/public/status
  * Public status lookup using application_id and candidate email.
  */
@@ -207,6 +262,8 @@ module.exports = {
     shortlistApplication,
     rejectApplication,
     selectApplication,
+    hireApplication,
+    getSkillMatch,
     getPublicStatus
 };
 

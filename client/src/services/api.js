@@ -11,7 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 10000
+  timeout: 15000
 });
 
 // Request interceptor: attach token from localStorage if present
@@ -26,17 +26,26 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401 unauthenticated
+const PUBLIC_PATHS = ['/login', '/candidate/login', '/candidate/signup', '/jobs/public', '/application-status'];
+
+// Response interceptor: an expired/invalid session sends the user to the right login page
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // If token is invalid or expired, clear local storage and redirect to login
+    const sentToken = Boolean(error.config?.headers?.Authorization);
+    if (error.response && error.response.status === 401 && sentToken) {
       const currentPath = window.location.pathname;
-      if (!currentPath.includes('/login') && !currentPath.startsWith('/jobs/public')) {
+      const onPublicPage = PUBLIC_PATHS.some((p) => currentPath.startsWith(p)) || /^\/jobs\/\d+\/apply/.test(currentPath);
+      if (!onPublicPage) {
+        let role = null;
+        try {
+          role = JSON.parse(localStorage.getItem('recruitflow_user') || 'null')?.role;
+        } catch {
+          role = null;
+        }
         localStorage.removeItem('recruitflow_token');
         localStorage.removeItem('recruitflow_user');
-        window.location.href = '/login?expired=1';
+        window.location.href = role === 'CANDIDATE' ? '/candidate/login?expired=1' : '/login?expired=1';
       }
     }
     return Promise.reject(error);

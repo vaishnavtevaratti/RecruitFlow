@@ -1,23 +1,25 @@
 /**
  * RecruitFlow — Candidate Job Board
- * Browse published jobs within the candidate portal and apply with one click.
+ * Lists published jobs that are still open, and marks jobs the candidate already applied to.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { jobService } from '../services/jobService';
+import { candidatePortalService } from '../services/candidatePortalService';
 import Loading from '../components/Loading';
+import ErrorMessage from '../components/ErrorMessage';
+import EmptyState from '../components/EmptyState';
+import { formatDate, formatSalaryRange, getErrorMessage, splitSkills } from '../utils/formatters';
 
 export default function CandidateJobs() {
   const [jobs, setJobs] = useState([]);
+  const [appliedByJob, setAppliedByJob] = useState({});
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
-
-  useEffect(() => {
-    fetchJobs();
-  }, [department]);
 
   const fetchJobs = async () => {
     try {
@@ -27,147 +29,107 @@ export default function CandidateJobs() {
       if (search.trim()) params.search = search.trim();
       if (department) params.department = department;
 
-      const res = await jobService.getJobs(params, true);
-      if (res.success && res.data) {
-        setJobs(res.data);
+      const [jobsRes, appsRes] = await Promise.all([
+        jobService.getJobs(params, true),
+        candidatePortalService.getApplications()
+      ]);
+      const list = jobsRes.data || [];
+      setJobs(list);
+      if (!search.trim() && !department) {
+        setDepartments(Array.from(new Set(list.map((j) => j.department))).filter(Boolean).sort());
       }
+      const map = {};
+      for (const a of appsRes.data || []) map[a.job_id] = a;
+      setAppliedByJob(map);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch job openings.');
+      setError(getErrorMessage(err, 'Failed to fetch job openings.'));
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     fetchJobs();
   };
 
-  if (loading) {
-    return <Loading message="Loading available positions..." />;
-  }
-
-  const departments = Array.from(new Set(jobs.map((j) => j.department))).filter(Boolean);
-
   return (
-    <div className="container-fluid py-4">
-      {/* Header */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <div className="page-header">
         <div>
-          <h2 className="fw-bold mb-1">Explore Open Positions</h2>
-          <p className="text-muted small mb-0">Browse and apply to active career opportunities at RecruitFlow</p>
+          <h1 className="page-title">Browse Jobs</h1>
+          <p className="page-subtitle">Open positions currently accepting applications</p>
         </div>
       </div>
 
-      {error && (
-        <div className="alert alert-danger d-flex align-items-center mb-4" role="alert">
-          <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-          <div>{error}</div>
-        </div>
-      )}
+      {error && <ErrorMessage message={error} onRetry={fetchJobs} />}
 
-      {/* Filter and Search Bar */}
-      <div className="card shadow-sm border-0 mb-4 p-3">
+      <div className="card-rf filter-bar mb-4">
         <form onSubmit={handleSearch} className="row g-2 align-items-center">
           <div className="col-12 col-md-6">
             <div className="input-group">
-              <span className="input-group-text bg-light text-muted">
-                <i className="bi bi-search"></i>
-              </span>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Search job title, skills, or keywords..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <span className="input-group-text"><i className="bi bi-search"></i></span>
+              <input type="search" className="form-control" placeholder="Search title, skills, or keywords" aria-label="Search jobs" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
-
           <div className="col-8 col-md-4">
-            <select
-              className="form-select"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-            >
-              <option value="">All Departments</option>
-              {departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              ))}
+            <select className="form-select" aria-label="Filter by department" value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="">All departments</option>
+              {departments.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
             </select>
           </div>
-
           <div className="col-4 col-md-2">
-            <button type="submit" className="btn btn-primary w-100">
-              Filter
-            </button>
+            <button type="submit" className="btn btn-primary w-100">Search</button>
           </div>
         </form>
       </div>
 
-      {/* Job Cards Grid */}
-      {jobs.length === 0 ? (
-        <div className="card shadow-sm border-0 text-center py-5">
-          <i className="bi bi-briefcase text-muted fs-1 mb-3"></i>
-          <h5 className="fw-bold">No Open Positions Matching Criteria</h5>
-          <p className="text-muted small">Try adjusting your search filters or check back soon.</p>
-        </div>
+      {loading ? (
+        <Loading message="Loading open positions..." />
+      ) : jobs.length === 0 ? (
+        <EmptyState icon="bi-briefcase" title="No open positions match" message="Try different keywords or check back soon." />
       ) : (
         <div className="row g-4">
-          {jobs.map((job) => (
-            <div key={job.id} className="col-12 col-lg-6">
-              <div className="card shadow-sm border-0 h-100 p-4 d-flex flex-column justify-content-between">
-                <div>
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <h5 className="fw-bold mb-0 text-dark">{job.title}</h5>
-                    <span className="badge bg-primary-subtle text-primary fw-semibold">{job.department}</span>
+          {jobs.map((job) => {
+            const applied = appliedByJob[job.id];
+            return (
+              <div key={job.id} className="col-12 col-xl-6">
+                <article className="card-rf job-card h-100">
+                  <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+                    <h2 className="h5 fw-semibold mb-0">{job.title}</h2>
+                    <span className="chip chip-primary">{job.department}</span>
                   </div>
-
                   <div className="d-flex flex-wrap gap-3 text-muted small mb-3">
-                    <span>
-                      <i className="bi bi-geo-alt me-1"></i> {job.location}
-                    </span>
-                    <span>
-                      <i className="bi bi-clock me-1"></i> {job.employment_type}
-                    </span>
-                    {job.salary_min && job.salary_max && (
-                      <span className="text-success fw-semibold">
-                        <i className="bi bi-cash-stack me-1"></i>
-                        ${Number(job.salary_min).toLocaleString()} - ${Number(job.salary_max).toLocaleString()}
-                      </span>
+                    <span><i className="bi bi-geo-alt me-1"></i>{job.location}</span>
+                    <span><i className="bi bi-clock me-1"></i>{job.employment_type}</span>
+                    <span><i className="bi bi-briefcase me-1"></i>{job.experience_required}</span>
+                    <span className="text-success fw-medium"><i className="bi bi-cash-stack me-1"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
+                  </div>
+                  <p className="text-secondary small mb-3 line-clamp-3">{job.description}</p>
+                  <div className="d-flex flex-wrap gap-1 mb-3">
+                    {splitSkills(job.skills).map((s) => <span key={s} className="chip">{s}</span>)}
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
+                    <span className="text-muted small">Apply by {formatDate(job.deadline)}</span>
+                    {applied ? (
+                      <Link to={`/candidate/applications/${applied.id}`} className="btn btn-sm btn-light border">
+                        <i className="bi bi-check2 me-1 text-success"></i> Applied · View
+                      </Link>
+                    ) : (
+                      <Link to={`/candidate/jobs/${job.id}/apply`} className="btn btn-sm btn-primary">
+                        View & apply <i className="bi bi-arrow-right"></i>
+                      </Link>
                     )}
                   </div>
-
-                  <p className="text-secondary small mb-3 line-clamp-3" style={{ maxHeight: '4.5rem', overflow: 'hidden' }}>
-                    {job.description}
-                  </p>
-
-                  <div className="d-flex flex-wrap gap-1 mb-3">
-                    {job.skills?.split(',').map((skill, idx) => (
-                      <span key={idx} className="badge bg-light text-secondary border">
-                        {skill.trim()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
-                  <span className="text-muted small">
-                    Deadline: {new Date(job.deadline).toLocaleDateString()}
-                  </span>
-                  <Link
-                    to={`/jobs/${job.id}/apply`}
-                    className="btn btn-primary btn-sm d-inline-flex align-items-center gap-1 shadow-sm px-3"
-                  >
-                    <span>Apply Now</span>
-                    <i className="bi bi-arrow-right"></i>
-                  </Link>
-                </div>
+                </article>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

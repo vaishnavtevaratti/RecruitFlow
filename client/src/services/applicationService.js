@@ -38,5 +38,10 @@ export const applicationService = {
   async selectApplication(id) {
     const response = await api.patch(`/applications/${id}/select`);
     return response.data;
+  },
+
+  async hireApplication(id) {
+    const response = await api.patch(`/applications/${id}/hire`);
+    return response.data;
   }
 };

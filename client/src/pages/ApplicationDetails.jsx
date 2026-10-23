@@ -1,486 +1,428 @@
 /**
- * RecruitFlow — Application Details & End-to-End Pipeline Action Center
+ * RecruitFlow — Application Details & Pipeline Action Center
+ * Every action calls the API and then reloads the application from the server, so the
+ * page always shows the persisted state. Business rules are enforced server-side.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { applicationService } from '../services/applicationService';
 import { interviewService } from '../services/interviewService';
 import { offerService } from '../services/offerService';
+import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
+import Notice from '../components/Notice';
 import Modal from '../components/Modal';
-import { formatDate, formatDateTime, formatCurrency } from '../utils/formatters';
+import ConfirmDialog from '../components/ConfirmDialog';
+import SkillMatchPanel from '../components/SkillMatchPanel';
+import {
+  formatDate,
+  formatDateTime,
+  formatCurrency,
+  getErrorMessage,
+  splitSkills,
+  dateInputValue,
+  dateTimeInputValue
+} from '../utils/formatters';
+
+const STAGE_ORDER = ['APPLIED', 'SCREENING', 'SHORTLISTED', 'INTERVIEW_SCHEDULED', 'INTERVIEWED', 'SELECTED', 'OFFER_SENT', 'OFFER_ACCEPTED', 'HIRED'];
+
+const PIPELINE_STAGES = [
+  { label: 'Applied', from: 0, to: 0 },
+  { label: 'Screening', from: 1, to: 1 },
+  { label: 'Shortlisted', from: 2, to: 2 },
+  { label: 'Interview', from: 3, to: 4 },
+  { label: 'Selected', from: 5, to: 5 },
+  { label: 'Offer', from: 6, to: 7 },
+  { label: 'Hired', from: 8, to: 8 }
+];
+
+const EMPTY_EVALUATION = {
+  technical_rating: '',
+  communication_rating: '',
+  problem_solving_rating: '',
+  overall_rating: '',
+  feedback: '',
+  result: 'PASS'
+};
+
+const CONFIRM_COPY = {
+  reject: {
+    title: 'Reject this application?',
+    message: 'Rejection is final. The candidate will see the application as not selected and it cannot progress further.',
+    label: 'Reject application',
+    variant: 'danger'
+  },
+  select: {
+    title: 'Select candidate for hire?',
+    message: 'The candidate passed the interview. Selecting them makes the application eligible for an offer.',
+    label: 'Select candidate',
+    variant: 'success'
+  },
+  hire: {
+    title: 'Mark candidate as hired?',
+    message: 'The candidate accepted the offer. This completes the recruitment workflow for this application.',
+    label: 'Mark as hired',
+    variant: 'success'
+  }
+};
+
+function stageState(stage, status) {
+  const idx = STAGE_ORDER.indexOf(status);
+  if (status === 'HIRED') return 'completed';
+  if (idx > stage.to) return 'completed';
+  if (idx >= stage.from && idx <= stage.to) return 'current';
+  return 'upcoming';
+}
 
 export default function ApplicationDetails() {
   const { id } = useParams();
+  const { user, isHR } = useAuth();
+
   const [app, setApp] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [feedback, setFeedback] = useState('');
-
-  // Modals state
-  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
-  const [isEvaluateOpen, setIsEvaluateOpen] = useState(false);
-  const [isOfferOpen, setIsOfferOpen] = useState(false);
-  const [selectedInterviewId, setSelectedInterviewId] = useState(null);
-
-  // Forms
-  const [scheduleForm, setScheduleForm] = useState({
-    interviewer_id: 2, // Default to demo Interviewer David Chen
-    scheduled_at: '',
-    type: 'Technical Interview',
-    meeting_link: ''
-  });
-
-  const [evaluateForm, setEvaluateForm] = useState({
-    technical_rating: 8,
-    communication_rating: 8,
-    problem_solving_rating: 8,
-    overall_rating: 8,
-    feedback: '',
-    result: 'PASS'
-  });
-
-  const [offerForm, setOfferForm] = useState({
-    salary: '',
-    offer_date: new Date().toISOString().split('T')[0],
-    joining_date: '',
-    expiry_date: ''
-  });
-
   const [submitting, setSubmitting] = useState(false);
+  const [interviewers, setInterviewers] = useState([]);
 
-  const fetchApplication = async () => {
+  const [modal, setModal] = useState(null); // 'schedule' | 'reschedule' | 'evaluate' | 'offer'
+  const [confirmAction, setConfirmAction] = useState(null); // 'reject' | 'select' | 'hire'
+  const [selectedInterview, setSelectedInterview] = useState(null);
+  const [formError, setFormError] = useState('');
+
+  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', scheduled_at: '', type: 'Technical Interview', meeting_link: '' });
+  const [evaluateForm, setEvaluateForm] = useState(EMPTY_EVALUATION);
+  const [offerForm, setOfferForm] = useState({ salary: '', offer_date: '', joining_date: '', expiry_date: '' });
+
+  const fetchApplication = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
-      setError('');
+      if (!silent) setLoading(true);
+      setLoadError('');
       const res = await applicationService.getApplicationById(id);
-      if (res.success && res.data) {
-        setApp(res.data);
-      }
+      setApp(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch application details.');
+      setLoadError(getErrorMessage(err, 'Failed to fetch application details.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchApplication();
-  }, [id]);
+  }, [fetchApplication]);
 
-  // Actions
-  const handleScreen = async () => {
+  useEffect(() => {
+    if (!isHR) return;
+    interviewService
+      .getInterviewers()
+      .then((res) => setInterviewers(res.data || []))
+      .catch(() => setInterviewers([]));
+  }, [isHR]);
+
+  /**
+   * Runs an API action, shows the outcome, and reloads persisted state either way.
+   */
+  const runAction = async (fn, successMessage) => {
     try {
       setSubmitting(true);
-      setError('');
-      const res = await applicationService.screenApplication(id);
-      if (res.success) {
-        setFeedback('Candidate advanced to SCREENING status.');
-        fetchApplication();
-      }
+      setActionError('');
+      setFeedback('');
+      await fn();
+      setFeedback(successMessage);
+      setModal(null);
+      setConfirmAction(null);
+      return true;
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to screen candidate.');
+      const message = getErrorMessage(err, 'Action failed.');
+      if (modal) setFormError(message);
+      else setActionError(message);
+      setConfirmAction(null);
+      return false;
     } finally {
       setSubmitting(false);
+      fetchApplication({ silent: true });
     }
   };
 
-  const handleShortlist = async () => {
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await applicationService.shortlistApplication(id);
-      if (res.success) {
-        setFeedback('Candidate successfully SHORTLISTED. Eligible for interview scheduling.');
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to shortlist candidate.');
-    } finally {
-      setSubmitting(false);
+  const openModal = (name, interview = null) => {
+    setFormError('');
+    setActionError('');
+    setSelectedInterview(interview);
+    if (name === 'schedule') {
+      const defaultInterviewer = interviewers.find((u) => u.role === 'INTERVIEWER') || interviewers[0];
+      setScheduleForm({
+        interviewer_id: defaultInterviewer ? String(defaultInterviewer.id) : '',
+        scheduled_at: '',
+        type: 'Technical Interview',
+        meeting_link: ''
+      });
+    } else if (name === 'reschedule' && interview) {
+      setScheduleForm({
+        interviewer_id: String(interview.interviewer_id),
+        scheduled_at: dateTimeInputValue(interview.scheduled_at),
+        type: interview.type,
+        meeting_link: interview.meeting_link || ''
+      });
+    } else if (name === 'evaluate') {
+      setEvaluateForm(EMPTY_EVALUATION);
+    } else if (name === 'offer') {
+      setOfferForm({ salary: '', offer_date: dateInputValue(0), joining_date: dateInputValue(30), expiry_date: dateInputValue(14) });
     }
+    setModal(name);
   };
 
-  const handleReject = async () => {
-    if (!window.confirm('Are you sure you want to mark this application as REJECTED? This terminal state stops pipeline progression.')) {
-      return;
-    }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await applicationService.rejectApplication(id);
-      if (res.success) {
-        setFeedback('Application marked as REJECTED.');
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reject application.');
-    } finally {
-      setSubmitting(false);
-    }
+  const closeModal = () => {
+    if (!submitting) setModal(null);
+  };
+
+  const validateSchedule = () => {
+    if (!scheduleForm.interviewer_id) return 'Select an interviewer.';
+    if (!scheduleForm.type.trim()) return 'Interview type is required.';
+    if (!scheduleForm.scheduled_at) return 'Interview date and time are required.';
+    if (new Date(scheduleForm.scheduled_at) <= new Date()) return 'Interview must be scheduled in the future.';
+    return '';
   };
 
   const handleScheduleSubmit = async (e) => {
     e.preventDefault();
-    if (!scheduleForm.scheduled_at) {
-      setError('Interview date and time are required.');
-      return;
+    const problem = validateSchedule();
+    if (problem) return setFormError(problem);
+    setFormError('');
+    if (modal === 'reschedule') {
+      await runAction(
+        () => interviewService.rescheduleInterview(selectedInterview.id, { ...scheduleForm, interviewer_id: Number(scheduleForm.interviewer_id) }),
+        'Interview rescheduled.'
+      );
+    } else {
+      await runAction(
+        () => interviewService.scheduleInterview({ application_id: Number(id), ...scheduleForm, interviewer_id: Number(scheduleForm.interviewer_id) }),
+        'Interview scheduled. The candidate can now see the interview details in their portal.'
+      );
     }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await interviewService.scheduleInterview({
-        application_id: Number(id),
-        ...scheduleForm
-      });
-      if (res.success) {
-        setFeedback('Interview successfully scheduled.');
-        setIsScheduleOpen(false);
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to schedule interview.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleOpenEvaluate = (interviewId) => {
-    setSelectedInterviewId(interviewId);
-    setIsEvaluateOpen(true);
   };
 
   const handleEvaluateSubmit = async (e) => {
     e.preventDefault();
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await interviewService.evaluateInterview(selectedInterviewId, evaluateForm);
-      if (res.success) {
-        setFeedback('Interview evaluation submitted. Application status updated to INTERVIEWED.');
-        setIsEvaluateOpen(false);
-        fetchApplication();
+    for (const field of ['technical_rating', 'communication_rating', 'problem_solving_rating', 'overall_rating']) {
+      const v = evaluateForm[field];
+      if (v === '' || !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 10) {
+        return setFormError('All ratings must be whole numbers from 1 to 10.');
       }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit interview evaluation.');
-    } finally {
-      setSubmitting(false);
     }
-  };
-
-  const handleSelect = async () => {
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await applicationService.selectApplication(id);
-      if (res.success) {
-        setFeedback('Candidate officially SELECTED for hire! Ready for offer generation.');
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to select candidate.');
-    } finally {
-      setSubmitting(false);
-    }
+    if (!evaluateForm.feedback.trim()) return setFormError('Please add written feedback.');
+    setFormError('');
+    const payload = {
+      ...evaluateForm,
+      technical_rating: Number(evaluateForm.technical_rating),
+      communication_rating: Number(evaluateForm.communication_rating),
+      problem_solving_rating: Number(evaluateForm.problem_solving_rating),
+      overall_rating: Number(evaluateForm.overall_rating)
+    };
+    await runAction(
+      () => interviewService.evaluateInterview(selectedInterview.id, payload),
+      `Evaluation recorded (${payload.result}). Application moved to INTERVIEWED.`
+    );
   };
 
   const handleOfferSubmit = async (e) => {
     e.preventDefault();
-    if (!offerForm.salary || !offerForm.joining_date || !offerForm.expiry_date) {
-      setError('Please provide salary, joining date, and expiry date.');
-      return;
-    }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await offerService.createOffer({
-        application_id: Number(id),
-        ...offerForm
-      });
-      if (res.success) {
-        setFeedback('Offer letter created and dispatched! Application moved to OFFER_SENT.');
-        setIsOfferOpen(false);
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to generate offer.');
-    } finally {
-      setSubmitting(false);
+    const { salary, offer_date, joining_date, expiry_date } = offerForm;
+    if (!salary || Number(salary) <= 0) return setFormError('Enter a positive annual salary.');
+    if (!offer_date || !joining_date || !expiry_date) return setFormError('All offer dates are required.');
+    if (expiry_date < dateInputValue(0)) return setFormError('Expiry date cannot be in the past.');
+    if (expiry_date < offer_date) return setFormError('Expiry date cannot be before the offer date.');
+    if (joining_date < offer_date) return setFormError('Joining date cannot be before the offer date.');
+    setFormError('');
+    await runAction(
+      () => offerService.createOffer({ application_id: Number(id), ...offerForm, salary: Number(salary) }),
+      'Offer sent. The candidate can accept or decline it from their portal.'
+    );
+  };
+
+  const handleConfirm = async () => {
+    if (confirmAction === 'reject') {
+      await runAction(() => applicationService.rejectApplication(id), 'Application rejected.');
+    } else if (confirmAction === 'select') {
+      await runAction(() => applicationService.selectApplication(id), 'Candidate selected. You can now issue an offer.');
+    } else if (confirmAction === 'hire') {
+      await runAction(() => applicationService.hireApplication(id), 'Candidate marked as hired. Workflow complete.');
     }
   };
 
-  const handleAcceptOffer = async (offerId) => {
-    if (!window.confirm('Confirm candidate acceptance of this offer? This will complete the hiring workflow.')) {
-      return;
-    }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await offerService.acceptOffer(offerId);
-      if (res.success) {
-        setFeedback('Offer officially ACCEPTED! Candidate status is now HIRED.');
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to accept offer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeclineOffer = async (offerId) => {
-    if (!window.confirm('Mark this offer as declined / rejected?')) return;
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await offerService.rejectOffer(offerId);
-      if (res.success) {
-        setFeedback('Offer declined. Candidate marked as REJECTED.');
-        fetchApplication();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reject offer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (loading) return <Loading message="Loading application pipeline details..." />;
-  if (error && !app) return <ErrorMessage message={error} onRetry={fetchApplication} />;
+  if (loading) return <Loading message="Loading application..." />;
+  if (loadError && !app) return <ErrorMessage message={loadError} onRetry={() => fetchApplication()} />;
   if (!app) return null;
 
-  // Pipeline stepper definition
-  const pipelineStages = [
-    { key: 'APPLIED', label: 'Applied' },
-    { key: 'SCREENING', label: 'Screening' },
-    { key: 'SHORTLISTED', label: 'Shortlisted' },
-    { key: 'INTERVIEW', label: 'Interview' }, // Matches INTERVIEW_SCHEDULED or INTERVIEWED
-    { key: 'SELECTED', label: 'Selected' },
-    { key: 'OFFER', label: 'Offer Sent' }, // Matches OFFER_SENT or OFFER_ACCEPTED
-    { key: 'HIRED', label: 'Hired' }
-  ];
-
-  const getStageStatus = (stageKey) => {
-    if (app.status === 'REJECTED') return 'rejected';
-
-    const stageOrder = [
-      'APPLIED',
-      'SCREENING',
-      'SHORTLISTED',
-      'INTERVIEW_SCHEDULED',
-      'INTERVIEWED',
-      'SELECTED',
-      'OFFER_SENT',
-      'OFFER_ACCEPTED',
-      'HIRED'
-    ];
-
-    const currentIdx = stageOrder.indexOf(app.status);
-
-    if (stageKey === 'APPLIED') return currentIdx >= 0 ? (currentIdx === 0 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'SCREENING') return currentIdx >= 1 ? (currentIdx === 1 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'SHORTLISTED') return currentIdx >= 2 ? (currentIdx === 2 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'INTERVIEW') return currentIdx >= 3 ? (currentIdx === 3 || currentIdx === 4 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'SELECTED') return currentIdx >= 5 ? (currentIdx === 5 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'OFFER') return currentIdx >= 6 ? (currentIdx === 6 || currentIdx === 7 ? 'current' : 'completed') : 'upcoming';
-    if (stageKey === 'HIRED') return currentIdx === 8 ? 'completed' : 'upcoming';
-
-    return 'upcoming';
-  };
-
-  const latestInterview = app.interviews && app.interviews.length > 0
-    ? app.interviews[app.interviews.length - 1]
-    : null;
+  const interviews = app.interviews || [];
+  const latestInterview = interviews.length > 0 ? interviews[interviews.length - 1] : null;
+  const pendingInterview = interviews.find((iv) => iv.result === 'PENDING') || null;
+  const canEvaluate =
+    app.status === 'INTERVIEW_SCHEDULED' && pendingInterview && (isHR || pendingInterview.interviewer_id === user?.id);
+  const offer = app.offer;
+  const offerExpired = offer?.status === 'EXPIRED';
+  const canReject =
+    isHR &&
+    !['HIRED', 'REJECTED', 'OFFER_ACCEPTED'].includes(app.status) &&
+    !(app.status === 'OFFER_SENT' && offer && !offerExpired);
 
   return (
     <div>
-      {/* Header */}
-      <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-        <div>
-          <div className="d-flex align-items-center gap-3">
-            <h1 className="page-title mb-0">{app.candidate_name}</h1>
-            <StatusBadge status={app.status} />
+      <div className="page-header">
+        <div className="d-flex align-items-center gap-3">
+          <div className="avatar-circle avatar-lg" aria-hidden="true">{app.candidate_name?.charAt(0).toUpperCase()}</div>
+          <div>
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <h1 className="page-title mb-0">{app.candidate_name}</h1>
+              <StatusBadge status={app.status} />
+            </div>
+            <p className="page-subtitle">
+              Application #{app.id} for{' '}
+              {isHR ? <Link to={`/jobs/${app.job_id}`} className="fw-semibold">{app.job_title}</Link> : <strong>{app.job_title}</strong>}
+              {' '}· Applied {formatDate(app.applied_at)}
+            </p>
           </div>
-          <p className="page-subtitle">
-            Applying for <Link to={`/jobs/${app.job_id}`} className="fw-semibold text-primary">{app.job_title}</Link> ({app.job_department}) &bull; Applied on {formatDate(app.applied_at)}
-          </p>
         </div>
-        <Link to="/applications" className="btn btn-outline-secondary">
-          <i className="bi bi-arrow-left me-1"></i> Back to Pipeline
+        <Link to={isHR ? '/applications' : '/interviews'} className="btn btn-light border">
+          <i className="bi bi-arrow-left me-1"></i> Back
         </Link>
       </div>
 
-      {feedback && (
-        <div className="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
-          <i className="bi bi-check-circle-fill me-2"></i>
-          {feedback}
-          <button type="button" className="btn-close" onClick={() => setFeedback('')}></button>
-        </div>
-      )}
+      <Notice message={feedback} onClose={() => setFeedback('')} />
+      {actionError && <ErrorMessage message={actionError} />}
 
-      {error && <ErrorMessage message={error} />}
-
-      {/* Visual Stepper Timeline */}
       <div className="card-rf p-4 mb-4">
-        <h6 className="fw-bold text-muted text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.06em' }}>
-          Recruitment Progression Pipeline
-        </h6>
-
         {app.status === 'REJECTED' ? (
-          <div className="alert alert-danger mb-0 d-flex align-items-center gap-2">
-            <i className="bi bi-x-octagon-fill fs-4"></i>
+          <div className="d-flex align-items-center gap-3 text-danger">
+            <i className="bi bi-x-octagon-fill fs-3"></i>
             <div>
-              <strong>Application Status: REJECTED.</strong>
-              <div className="small">This application has reached a terminal state and cannot progress further through the pipeline.</div>
+              <div className="fw-semibold">Application rejected</div>
+              <div className="small text-muted">This is a terminal state; the application cannot progress further.</div>
             </div>
           </div>
         ) : (
-          <div className="pipeline-stepper">
-            {pipelineStages.map((stage, idx) => {
-              const statusClass = getStageStatus(stage.key);
+          <ol className="pipeline-stepper" aria-label="Recruitment progress">
+            {PIPELINE_STAGES.map((stage, idx) => {
+              const state = stageState(stage, app.status);
               return (
-                <div key={idx} className={`stepper-item ${statusClass}`}>
-                  <div className="stepper-circle">
-                    {statusClass === 'completed' ? (
-                      <i className="bi bi-check-lg"></i>
-                    ) : (
-                      idx + 1
-                    )}
-                  </div>
+                <li key={stage.label} className={`stepper-item ${state}`} aria-current={state === 'current' ? 'step' : undefined}>
+                  <div className="stepper-circle">{state === 'completed' ? <i className="bi bi-check-lg"></i> : idx + 1}</div>
                   <div className="stepper-title">{stage.label}</div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ol>
         )}
       </div>
 
       <div className="row g-4">
-        {/* Left Column: Details & Interview Records */}
         <div className="col-12 col-lg-8">
-          {/* Candidate Profile Summary */}
           <div className="card-rf p-4 mb-4">
-            <h5 className="fw-bold mb-3 border-bottom pb-2">Candidate Qualifications</h5>
+            <h2 className="section-title">Candidate profile</h2>
             <div className="row g-3">
               <div className="col-sm-6">
-                <small className="text-muted d-block">Full Name</small>
-                <div className="fw-semibold">{app.candidate_name}</div>
+                <div className="field-label">Email</div>
+                <div className="fw-medium text-break">{app.candidate_email}</div>
               </div>
               <div className="col-sm-6">
-                <small className="text-muted d-block">Email Address</small>
-                <div className="fw-semibold">{app.candidate_email}</div>
+                <div className="field-label">Phone</div>
+                <div className="fw-medium">{app.candidate_phone || '—'}</div>
               </div>
               <div className="col-sm-6">
-                <small className="text-muted d-block">Phone Number</small>
-                <div className="fw-semibold">{app.candidate_phone}</div>
+                <div className="field-label">Experience</div>
+                <div className="fw-medium">{app.candidate_experience || '—'}</div>
               </div>
               <div className="col-sm-6">
-                <small className="text-muted d-block">Experience</small>
-                <div className="fw-semibold">{app.candidate_experience}</div>
+                <div className="field-label">Education</div>
+                <div className="fw-medium">{app.candidate_education || '—'}</div>
               </div>
               <div className="col-12">
-                <small className="text-muted d-block">Education</small>
-                <div className="fw-semibold">{app.candidate_education}</div>
-              </div>
-              <div className="col-12">
-                <small className="text-muted d-block">Skills</small>
+                <div className="field-label">Skills</div>
                 <div className="d-flex flex-wrap gap-1 mt-1">
-                  {app.candidate_skills.split(',').map((s, i) => (
-                    <span key={i} className="badge bg-light text-dark border">
-                      {s.trim()}
-                    </span>
+                  {splitSkills(app.candidate_skills).length === 0 && <span className="text-muted small">Not provided</span>}
+                  {splitSkills(app.candidate_skills).map((s) => (
+                    <span key={s} className="chip">{s}</span>
                   ))}
                 </div>
               </div>
-              {app.resume_url && (
-                <div className="col-12 mt-2">
-                  <a
-                    href={app.resume_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-sm btn-outline-primary"
-                  >
-                    <i className="bi bi-file-earmark-pdf me-1"></i> View Submitted Resume
+              {app.resume_url && /^https?:\/\//i.test(app.resume_url) && (
+                <div className="col-12">
+                  <a href={app.resume_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+                    <i className="bi bi-file-earmark-text me-1"></i> View resume / portfolio
                   </a>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Interview Records Section */}
+          {isHR && <SkillMatchPanel applicationId={app.id} />}
+
           <div className="card-rf p-4 mb-4">
-            <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
-              <h5 className="fw-bold mb-0">Interview History & Evaluations</h5>
-              {app.status === 'SHORTLISTED' && (
-                <button className="btn btn-sm btn-primary" onClick={() => setIsScheduleOpen(true)}>
-                  <i className="bi bi-calendar-plus me-1"></i> Schedule Round
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <h2 className="section-title mb-0">Interviews</h2>
+              {isHR && app.status === 'SHORTLISTED' && (
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => openModal('schedule')}>
+                  <i className="bi bi-calendar-plus me-1"></i> Schedule
                 </button>
               )}
             </div>
 
-            {(!app.interviews || app.interviews.length === 0) ? (
-              <p className="text-muted small mb-0">No interview rounds scheduled yet.</p>
+            {interviews.length === 0 ? (
+              <p className="text-muted small mb-0">No interviews scheduled yet.</p>
             ) : (
               <div className="d-flex flex-column gap-3">
-                {app.interviews.map((iv) => (
-                  <div key={iv.id} className="p-3 border rounded-3 bg-light">
-                    <div className="d-flex justify-content-between align-items-start mb-2">
+                {interviews.map((iv) => (
+                  <div key={iv.id} className="sub-card">
+                    <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap">
                       <div>
-                        <h6 className="fw-bold mb-1 text-primary">{iv.type}</h6>
-                        <small className="text-muted">
-                          <i className="bi bi-clock me-1"></i> {formatDateTime(iv.scheduled_at)} &bull; Interviewer: {iv.interviewer_name}
-                        </small>
+                        <div className="fw-semibold">{iv.type}</div>
+                        <div className="small text-muted">
+                          <i className="bi bi-clock me-1"></i>{formatDateTime(iv.scheduled_at)} · {iv.interviewer_name}
+                        </div>
+                        {iv.meeting_link && /^https?:\/\//i.test(iv.meeting_link) && (
+                          <a href={iv.meeting_link} target="_blank" rel="noopener noreferrer" className="small">
+                            <i className="bi bi-camera-video me-1"></i>Meeting link
+                          </a>
+                        )}
                       </div>
                       <StatusBadge status={iv.result} />
                     </div>
 
-                    {iv.meeting_link && (
-                      <div className="small mb-2">
-                        <span className="text-muted">Meeting URL: </span>
-                        <a href={iv.meeting_link} target="_blank" rel="noopener noreferrer">
-                          {iv.meeting_link}
-                        </a>
-                      </div>
-                    )}
-
                     {iv.result !== 'PENDING' ? (
-                      <div className="border-top pt-2 mt-2">
-                        <div className="row g-2 text-center my-2">
-                          <div className="col-3">
-                            <small className="text-muted d-block">Tech</small>
-                            <span className="fw-bold">{iv.technical_rating}/10</span>
-                          </div>
-                          <div className="col-3">
-                            <small className="text-muted d-block">Comms</small>
-                            <span className="fw-bold">{iv.communication_rating}/10</span>
-                          </div>
-                          <div className="col-3">
-                            <small className="text-muted d-block">Problem Solving</small>
-                            <span className="fw-bold">{iv.problem_solving_rating}/10</span>
-                          </div>
-                          <div className="col-3">
-                            <small className="text-muted d-block">Overall</small>
-                            <span className="fw-bold text-primary">{iv.overall_rating}/10</span>
-                          </div>
+                      <div className="border-top pt-3 mt-3">
+                        <div className="row g-2 text-center mb-2">
+                          {[
+                            ['Technical', iv.technical_rating],
+                            ['Communication', iv.communication_rating],
+                            ['Problem solving', iv.problem_solving_rating],
+                            ['Overall', iv.overall_rating]
+                          ].map(([label, value]) => (
+                            <div key={label} className="col-6 col-md-3">
+                              <div className="field-label">{label}</div>
+                              <div className="fw-bold">{value ?? '—'}{value ? '/10' : ''}</div>
+                            </div>
+                          ))}
                         </div>
-                        {iv.feedback && (
-                          <div className="p-2 bg-white rounded border small mt-2">
-                            <strong>Feedback:</strong> {iv.feedback}
-                          </div>
-                        )}
+                        {iv.feedback && <div className="feedback-box small">{iv.feedback}</div>}
                       </div>
                     ) : (
-                      <div className="border-top pt-2 mt-2 text-end">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleOpenEvaluate(iv.id)}
-                        >
-                          <i className="bi bi-pencil-square me-1"></i> Submit Evaluation
-                        </button>
-                      </div>
+                      app.status === 'INTERVIEW_SCHEDULED' && (
+                        <div className="border-top pt-3 mt-3 d-flex justify-content-end gap-2">
+                          {isHR && (
+                            <button type="button" className="btn btn-sm btn-light border" onClick={() => openModal('reschedule', iv)}>
+                              <i className="bi bi-calendar2-week me-1"></i> Reschedule
+                            </button>
+                          )}
+                          {(isHR || iv.interviewer_id === user?.id) && (
+                            <button type="button" className="btn btn-sm btn-primary" onClick={() => openModal('evaluate', iv)}>
+                              <i className="bi bi-pencil-square me-1"></i> Record evaluation
+                            </button>
+                          )}
+                        </div>
+                      )
                     )}
                   </div>
                 ))}
@@ -488,372 +430,244 @@ export default function ApplicationDetails() {
             )}
           </div>
 
-          {/* Offer Letter Details Section */}
-          {app.offer && (
-            <div className="card-rf p-4 mb-4 border-primary">
-              <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
-                <h5 className="fw-bold mb-0 text-primary">
-                  <i className="bi bi-award-fill me-2"></i>
-                  Compensation Offer Package
-                </h5>
-                <StatusBadge status={app.offer.status} />
+          {offer && isHR && (
+            <div className="card-rf p-4 mb-4">
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <h2 className="section-title mb-0">Offer</h2>
+                <StatusBadge status={offer.status} audience="offer" />
               </div>
               <div className="row g-3">
                 <div className="col-sm-6">
-                  <small className="text-muted d-block">Annual Salary</small>
-                  <div className="fs-5 fw-bold text-success">{formatCurrency(app.offer.salary)}</div>
+                  <div className="field-label">Annual salary</div>
+                  <div className="fs-5 fw-bold text-success">{formatCurrency(offer.salary)}</div>
                 </div>
                 <div className="col-sm-6">
-                  <small className="text-muted d-block">Offer Date</small>
-                  <div className="fw-semibold">{formatDate(app.offer.offer_date)}</div>
+                  <div className="field-label">Offer date</div>
+                  <div className="fw-medium">{formatDate(offer.offer_date)}</div>
                 </div>
                 <div className="col-sm-6">
-                  <small className="text-muted d-block">Proposed Joining Date</small>
-                  <div className="fw-semibold">{formatDate(app.offer.joining_date)}</div>
+                  <div className="field-label">Joining date</div>
+                  <div className="fw-medium">{formatDate(offer.joining_date)}</div>
                 </div>
                 <div className="col-sm-6">
-                  <small className="text-muted d-block">Offer Expiration Date</small>
-                  <div className="fw-semibold text-danger">{formatDate(app.offer.expiry_date)}</div>
+                  <div className="field-label">Respond by</div>
+                  <div className={`fw-medium ${offerExpired ? 'text-danger' : ''}`}>{formatDate(offer.expiry_date)}</div>
                 </div>
               </div>
-
-              {app.offer.status === 'SENT' && (
-                <div className="border-top pt-3 mt-3 d-flex align-items-center justify-content-between text-muted small">
-                  <span>
-                    <i className="bi bi-hourglass-split me-1 text-primary"></i>
-                    Awaiting candidate acceptance or decline
-                  </span>
-                  <span className="badge bg-primary-subtle text-primary">Pending Candidate Action</span>
-                </div>
-              )}
-              {app.offer.status === 'ACCEPTED' && (
-                <div className="border-top pt-3 mt-3 text-success small fw-semibold">
-                  <i className="bi bi-check-circle-fill me-1"></i> Offer Accepted by Candidate — Candidate is HIRED
-                </div>
-              )}
-              {app.offer.status === 'REJECTED' && (
-                <div className="border-top pt-3 mt-3 text-danger small fw-semibold">
-                  <i className="bi bi-x-circle-fill me-1"></i> Offer Declined by Candidate — Application REJECTED
-                </div>
-              )}
+              <div className="border-top pt-3 mt-3 small">
+                {offer.status === 'SENT' && <span className="text-muted"><i className="bi bi-hourglass-split me-1"></i>Waiting for the candidate to accept or decline in their portal.</span>}
+                {offer.status === 'EXPIRED' && <span className="text-danger"><i className="bi bi-hourglass-bottom me-1"></i>The candidate did not respond before the expiry date. You can reject the application to close it out.</span>}
+                {offer.status === 'ACCEPTED' && app.status === 'OFFER_ACCEPTED' && <span className="text-success fw-semibold"><i className="bi bi-check-circle-fill me-1"></i>Accepted by the candidate. Confirm the hire to complete the workflow.</span>}
+                {offer.status === 'ACCEPTED' && app.status === 'HIRED' && <span className="text-success fw-semibold"><i className="bi bi-trophy-fill me-1"></i>Accepted and hired.</span>}
+                {offer.status === 'REJECTED' && <span className="text-danger"><i className="bi bi-x-circle-fill me-1"></i>Declined by the candidate. The application is closed.</span>}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Right Column: Workflow Action Panel */}
         <div className="col-12 col-lg-4">
-          <div className="card-rf p-4 sticky-top" style={{ top: '90px' }}>
-            <h5 className="fw-bold mb-3 border-bottom pb-2">Pipeline Decision Center</h5>
-            <p className="text-muted small mb-3">
-              Perform stage transitions adhering to RecruitFlow state machine business rules:
-            </p>
-
-            <div className="d-grid gap-2 mb-3">
-              {/* State 1: APPLIED -> SCREENING */}
-              {app.status === 'APPLIED' && (
-                <button
-                  className="btn btn-primary"
-                  onClick={handleScreen}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-search me-1"></i> Begin Resume Screening
+          <div className="card-rf p-4 action-panel">
+            <h2 className="section-title">Next step</h2>
+            <div className="d-grid gap-2">
+              {isHR && app.status === 'APPLIED' && (
+                <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => runAction(() => applicationService.screenApplication(id), 'Moved to screening.')}>
+                  <i className="bi bi-search me-1"></i> Start screening
                 </button>
               )}
-
-              {/* State 2: SCREENING -> SHORTLISTED */}
-              {app.status === 'SCREENING' && (
-                <button
-                  className="btn btn-success"
-                  onClick={handleShortlist}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-star-fill me-1"></i> Shortlist Candidate
+              {isHR && app.status === 'SCREENING' && (
+                <button type="button" className="btn btn-success" disabled={submitting} onClick={() => runAction(() => applicationService.shortlistApplication(id), 'Candidate shortlisted. Schedule an interview next.')}>
+                  <i className="bi bi-star me-1"></i> Shortlist candidate
                 </button>
               )}
-
-              {/* State 3: SHORTLISTED -> INTERVIEW_SCHEDULED */}
-              {app.status === 'SHORTLISTED' && (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setIsScheduleOpen(true)}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-calendar-plus me-1"></i> Schedule Interview
+              {isHR && app.status === 'SHORTLISTED' && (
+                <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('schedule')}>
+                  <i className="bi bi-calendar-plus me-1"></i> Schedule interview
                 </button>
               )}
-
-              {/* State 4: INTERVIEW_SCHEDULED -> INTERVIEWED */}
-              {app.status === 'INTERVIEW_SCHEDULED' && latestInterview && (
-                <button
-                  className="btn btn-warning text-dark fw-semibold"
-                  onClick={() => handleOpenEvaluate(latestInterview.id)}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-pencil-square me-1"></i> Evaluate Interview
+              {canEvaluate && (
+                <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('evaluate', pendingInterview)}>
+                  <i className="bi bi-pencil-square me-1"></i> Record interview evaluation
                 </button>
               )}
-
-              {/* State 5: INTERVIEWED -> SELECTED */}
-              {app.status === 'INTERVIEWED' && latestInterview?.result === 'PASS' && (
-                <button
-                  className="btn btn-success"
-                  onClick={handleSelect}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-award-fill me-1"></i> Select for Hire
+              {isHR && app.status === 'INTERVIEWED' && latestInterview?.result === 'PASS' && (
+                <button type="button" className="btn btn-success" disabled={submitting} onClick={() => setConfirmAction('select')}>
+                  <i className="bi bi-award me-1"></i> Select for hire
                 </button>
               )}
-
-              {/* State 6: SELECTED -> OFFER_SENT */}
-              {app.status === 'SELECTED' && (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setIsOfferOpen(true)}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-file-earmark-plus me-1"></i> Generate Offer Letter
+              {isHR && app.status === 'INTERVIEWED' && latestInterview?.result === 'FAIL' && (
+                <div className="state-callout state-callout-danger">The candidate did not pass the interview and cannot be selected.</div>
+              )}
+              {isHR && app.status === 'SELECTED' && (
+                <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('offer')}>
+                  <i className="bi bi-envelope-paper me-1"></i> Create & send offer
                 </button>
               )}
-
-              {/* State 7: OFFER_SENT -> Awaiting Candidate Decision */}
-              {app.status === 'OFFER_SENT' && (
-                <div className="alert alert-info text-center mb-0">
-                  <i className="bi bi-envelope-paper-fill fs-3 d-block mb-1 text-primary"></i>
-                  <strong>Offer Dispatched</strong>
-                  <div className="small mt-1">Awaiting candidate acceptance or decline.</div>
+              {app.status === 'OFFER_SENT' && !offerExpired && (
+                <div className="state-callout">
+                  <i className="bi bi-envelope-paper me-1"></i> Offer sent — awaiting the candidate's response.
                 </div>
               )}
-
-              {/* Terminal: HIRED */}
+              {app.status === 'OFFER_SENT' && offerExpired && (
+                <div className="state-callout state-callout-warning">
+                  <i className="bi bi-hourglass-bottom me-1"></i> Offer expired without a response.
+                </div>
+              )}
+              {isHR && app.status === 'OFFER_ACCEPTED' && (
+                <button type="button" className="btn btn-success" disabled={submitting} onClick={() => setConfirmAction('hire')}>
+                  <i className="bi bi-person-check me-1"></i> Mark as hired
+                </button>
+              )}
               {app.status === 'HIRED' && (
-                <div className="alert alert-success text-center mb-0">
-                  <i className="bi bi-trophy-fill fs-3 d-block mb-1"></i>
-                  <strong>Candidate Successfully Hired!</strong>
+                <div className="state-callout state-callout-success">
+                  <i className="bi bi-trophy-fill me-1"></i> Hired — recruitment complete.
                 </div>
               )}
+              {app.status === 'REJECTED' && <div className="state-callout state-callout-danger">No further actions available.</div>}
+              {!isHR && !canEvaluate && app.status !== 'HIRED' && app.status !== 'REJECTED' && (
+                <div className="state-callout">No action needed from you right now.</div>
+              )}
 
-              {/* General Rejection Action (Available for any active non-terminal state) */}
-              {app.status !== 'HIRED' && app.status !== 'REJECTED' && (
-                <button
-                  className="btn btn-outline-danger mt-2"
-                  onClick={handleReject}
-                  disabled={submitting}
-                >
-                  <i className="bi bi-x-octagon me-1"></i> Reject Application
+              {canReject && (
+                <button type="button" className="btn btn-outline-danger mt-2" disabled={submitting} onClick={() => setConfirmAction('reject')}>
+                  <i className="bi bi-x-octagon me-1"></i> Reject application
                 </button>
               )}
             </div>
 
-            <div className="bg-light p-3 rounded-3 border small text-muted">
-              <strong>Workflow Invariants:</strong>
-              <ul className="mb-0 ps-3 mt-1">
-                <li>Candidates must be screened before shortlisting.</li>
-                <li>Only shortlisted candidates can receive interviews.</li>
-                <li>Passing score required before final selection.</li>
-                <li>Only selected candidates can receive an offer.</li>
+            <div className="rules-box mt-4">
+              <div className="fw-semibold mb-1">Workflow rules</div>
+              <ul className="mb-0 ps-3">
+                <li>Screen before shortlisting.</li>
+                <li>Only shortlisted candidates can be interviewed.</li>
+                <li>A passing interview is required for selection.</li>
+                <li>Only selected candidates receive offers.</li>
+                <li>Hiring requires the candidate's acceptance.</li>
               </ul>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal 1: Schedule Interview */}
-      <Modal
-        title="Schedule Interview Round"
-        isOpen={isScheduleOpen}
-        onClose={() => setIsScheduleOpen(false)}
-      >
-        <form onSubmit={handleScheduleSubmit}>
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Round Type</label>
-            <input
-              type="text"
-              className="form-control"
-              value={scheduleForm.type}
-              onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value })}
-              placeholder="e.g. Technical Round 1 / System Architecture"
-              required
-            />
+      {/* Schedule / Reschedule Interview */}
+      <Modal title={modal === 'reschedule' ? 'Reschedule interview' : 'Schedule interview'} isOpen={modal === 'schedule' || modal === 'reschedule'} onClose={closeModal}>
+        <form onSubmit={handleScheduleSubmit} noValidate>
+          {formError && <ErrorMessage message={formError} />}
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label htmlFor="iv-type" className="form-label">Round type</label>
+              <input id="iv-type" type="text" maxLength={50} className="form-control" value={scheduleForm.type} onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value })} placeholder="e.g. Technical Round 1" required />
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="iv-interviewer" className="form-label">Interviewer</label>
+              <select id="iv-interviewer" className="form-select" value={scheduleForm.interviewer_id} onChange={(e) => setScheduleForm({ ...scheduleForm, interviewer_id: e.target.value })} required>
+                <option value="">Select interviewer</option>
+                {interviewers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.role.toLowerCase()})</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="iv-when" className="form-label">Date & time</label>
+              <input id="iv-when" type="datetime-local" className="form-control" min={dateTimeInputValue(new Date())} value={scheduleForm.scheduled_at} onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_at: e.target.value })} required />
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="iv-link" className="form-label">Meeting link <span className="text-muted fw-normal">(optional)</span></label>
+              <input id="iv-link" type="url" maxLength={500} className="form-control" value={scheduleForm.meeting_link} onChange={(e) => setScheduleForm({ ...scheduleForm, meeting_link: e.target.value })} placeholder="https://meet.google.com/..." />
+            </div>
           </div>
-
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Date & Time</label>
-            <input
-              type="datetime-local"
-              className="form-control"
-              value={scheduleForm.scheduled_at}
-              onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_at: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Meeting Link (Optional)</label>
-            <input
-              type="url"
-              className="form-control"
-              value={scheduleForm.meeting_link}
-              onChange={(e) => setScheduleForm({ ...scheduleForm, meeting_link: e.target.value })}
-              placeholder="https://meet.google.com/xyz-abc"
-            />
-          </div>
-
-          <div className="d-flex justify-content-end gap-2 pt-3 border-top">
-            <button type="button" className="btn btn-outline-secondary" onClick={() => setIsScheduleOpen(false)}>
-              Cancel
-            </button>
+          <div className="d-flex justify-content-end gap-2 pt-3 mt-4 border-top">
+            <button type="button" className="btn btn-light border" onClick={closeModal} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              Schedule Interview
+              {submitting && <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>}
+              {modal === 'reschedule' ? 'Save new time' : 'Schedule interview'}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal 2: Evaluate Interview */}
-      <Modal
-        title="Submit Interview Evaluation"
-        isOpen={isEvaluateOpen}
-        onClose={() => setIsEvaluateOpen(false)}
-      >
-        <form onSubmit={handleEvaluateSubmit}>
+      {/* Evaluate Interview */}
+      <Modal title="Record interview evaluation" isOpen={modal === 'evaluate'} onClose={closeModal}>
+        <form onSubmit={handleEvaluateSubmit} noValidate>
+          {formError && <ErrorMessage message={formError} />}
+          <p className="text-muted small">Rate each area from 1 (poor) to 10 (excellent). The recommendation decides whether the candidate can be selected.</p>
           <div className="row g-3 mb-3">
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Technical Proficiency (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.technical_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, technical_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Communication (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.communication_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, communication_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Problem Solving (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.problem_solving_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, problem_solving_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Overall Rating (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.overall_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, overall_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
+            {[
+              ['technical_rating', 'Technical skills'],
+              ['communication_rating', 'Communication'],
+              ['problem_solving_rating', 'Problem solving'],
+              ['overall_rating', 'Overall']
+            ].map(([field, label]) => (
+              <div key={field} className="col-6 col-md-3">
+                <label htmlFor={`ev-${field}`} className="form-label small">{label}</label>
+                <input id={`ev-${field}`} type="number" min="1" max="10" step="1" className="form-control" value={evaluateForm[field]} onChange={(e) => setEvaluateForm({ ...evaluateForm, [field]: e.target.value })} required />
+              </div>
+            ))}
           </div>
-
           <div className="mb-3">
-            <label className="form-label fw-semibold">Interviewer Feedback & Notes</label>
-            <textarea
-              className="form-control"
-              rows="3"
-              value={evaluateForm.feedback}
-              onChange={(e) => setEvaluateForm({ ...evaluateForm, feedback: e.target.value })}
-              placeholder="Candidate strengths, areas for development, architectural depth..."
-              required
-            ></textarea>
+            <label htmlFor="ev-feedback" className="form-label">Feedback</label>
+            <textarea id="ev-feedback" className="form-control" rows="4" maxLength={5000} value={evaluateForm.feedback} onChange={(e) => setEvaluateForm({ ...evaluateForm, feedback: e.target.value })} placeholder="Strengths, concerns, and evidence for the recommendation" required></textarea>
           </div>
-
-          <div className="mb-4">
-            <label className="form-label fw-semibold">Evaluation Recommendation</label>
-            <select
-              className="form-select"
-              value={evaluateForm.result}
-              onChange={(e) => setEvaluateForm({ ...evaluateForm, result: e.target.value })}
-            >
-              <option value="PASS">PASS — Recommend for Selection</option>
-              <option value="FAIL">FAIL — Do Not Recommend</option>
-            </select>
-          </div>
-
-          <div className="d-flex justify-content-end gap-2 pt-3 border-top">
-            <button type="button" className="btn btn-outline-secondary" onClick={() => setIsEvaluateOpen(false)}>
-              Cancel
-            </button>
+          <fieldset className="mb-2">
+            <legend className="form-label">Recommendation</legend>
+            <div className="d-flex gap-2">
+              <input type="radio" className="btn-check" name="ev-result" id="ev-pass" checked={evaluateForm.result === 'PASS'} onChange={() => setEvaluateForm({ ...evaluateForm, result: 'PASS' })} />
+              <label className="btn btn-outline-success flex-fill" htmlFor="ev-pass"><i className="bi bi-check-lg me-1"></i>Pass</label>
+              <input type="radio" className="btn-check" name="ev-result" id="ev-fail" checked={evaluateForm.result === 'FAIL'} onChange={() => setEvaluateForm({ ...evaluateForm, result: 'FAIL' })} />
+              <label className="btn btn-outline-danger flex-fill" htmlFor="ev-fail"><i className="bi bi-x-lg me-1"></i>Fail</label>
+            </div>
+          </fieldset>
+          <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">
+            <button type="button" className="btn btn-light border" onClick={closeModal} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              Submit Evaluation
+              {submitting && <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>}
+              Submit evaluation
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal 3: Issue Offer */}
-      <Modal
-        title="Issue Compensation Offer"
-        isOpen={isOfferOpen}
-        onClose={() => setIsOfferOpen(false)}
-      >
-        <form onSubmit={handleOfferSubmit}>
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Annual Compensation ($)</label>
-            <input
-              type="number"
-              className="form-control"
-              placeholder="e.g. 115000"
-              value={offerForm.salary}
-              onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="row g-3 mb-3">
-            <div className="col-sm-6">
-              <label className="form-label fw-semibold">Proposed Joining Date</label>
-              <input
-                type="date"
-                className="form-control"
-                value={offerForm.joining_date}
-                onChange={(e) => setOfferForm({ ...offerForm, joining_date: e.target.value })}
-                required
-              />
+      {/* Create Offer */}
+      <Modal title="Create offer" isOpen={modal === 'offer'} onClose={closeModal}>
+        <form onSubmit={handleOfferSubmit} noValidate>
+          {formError && <ErrorMessage message={formError} />}
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label htmlFor="of-salary" className="form-label">Annual salary ($)</label>
+              <input id="of-salary" type="number" min="1" step="1000" className="form-control" placeholder="e.g. 115000" value={offerForm.salary} onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })} required />
             </div>
-            <div className="col-sm-6">
-              <label className="form-label fw-semibold">Offer Expiration Date</label>
-              <input
-                type="date"
-                className="form-control"
-                value={offerForm.expiry_date}
-                onChange={(e) => setOfferForm({ ...offerForm, expiry_date: e.target.value })}
-                required
-              />
+            <div className="col-md-6">
+              <label htmlFor="of-date" className="form-label">Offer date</label>
+              <input id="of-date" type="date" className="form-control" value={offerForm.offer_date} onChange={(e) => setOfferForm({ ...offerForm, offer_date: e.target.value })} required />
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="of-join" className="form-label">Joining date</label>
+              <input id="of-join" type="date" className="form-control" min={offerForm.offer_date} value={offerForm.joining_date} onChange={(e) => setOfferForm({ ...offerForm, joining_date: e.target.value })} required />
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="of-expiry" className="form-label">Candidate must respond by</label>
+              <input id="of-expiry" type="date" className="form-control" min={dateInputValue(0)} value={offerForm.expiry_date} onChange={(e) => setOfferForm({ ...offerForm, expiry_date: e.target.value })} required />
             </div>
           </div>
-
-          <div className="d-flex justify-content-end gap-2 pt-3 border-top">
-            <button type="button" className="btn btn-outline-secondary" onClick={() => setIsOfferOpen(false)}>
-              Cancel
-            </button>
+          <div className="d-flex justify-content-end gap-2 pt-3 mt-4 border-top">
+            <button type="button" className="btn btn-light border" onClick={closeModal} disabled={submitting}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              Dispatch Offer Letter
+              {submitting && <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>}
+              Send offer
             </button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={Boolean(confirmAction)}
+        title={CONFIRM_COPY[confirmAction]?.title}
+        message={CONFIRM_COPY[confirmAction]?.message}
+        confirmLabel={CONFIRM_COPY[confirmAction]?.label}
+        variant={CONFIRM_COPY[confirmAction]?.variant}
+        busy={submitting}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }

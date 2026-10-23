@@ -63,4 +63,22 @@ router.patch(
     applicationController.selectApplication
 );
 
+// Advisory skill match (HR/Admin only)
+router.get(
+    '/:id/skill-match',
+    validateParamId('id'),
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
+    applicationController.getSkillMatch
+);
+
+// Final hiring step after the candidate accepted the offer
+router.patch(
+    '/:id/hire',
+    validateParamId('id'),
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
+    applicationController.hireApplication
+);
+
 module.exports = router;

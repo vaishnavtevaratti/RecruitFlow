@@ -4,8 +4,19 @@
 
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'RecruitFlow_Local_Secret_Fallback';
 const JWT_EXPIRES_IN = '24h';
+
+/**
+ * Reads the signing secret lazily so it is always taken from server/.env.
+ * There is deliberately no hardcoded fallback secret.
+ */
+function getSecret() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('JWT_SECRET is not configured. Set it in server/.env.');
+    }
+    return secret;
+}
 
 /**
  * Generate a JWT token for an authenticated user.
@@ -20,7 +31,7 @@ function generateToken(payload) {
             role: payload.role,
             name: payload.name
         },
-        JWT_SECRET,
+        getSecret(),
         { expiresIn: JWT_EXPIRES_IN }
     );
 }
@@ -31,7 +42,7 @@ function generateToken(payload) {
  * @returns {Object} Decoded payload
  */
 function verifyToken(token) {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
 }
 
 module.exports = {

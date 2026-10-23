@@ -1,32 +1,40 @@
 /**
- * RecruitFlow — Offers & Onboarding Page
+ * RecruitFlow — Offers & Hiring Page
+ * Offer status is reported by the server; an unanswered offer past its expiry date shows as EXPIRED.
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { offerService } from '../services/offerService';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate, formatCurrency } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
+import { formatDate, formatCurrency, getErrorMessage } from '../utils/formatters';
+
+const FILTERS = [
+  { key: '', label: 'All' },
+  { key: 'SENT', label: 'Awaiting response' },
+  { key: 'ACCEPTED', label: 'Accepted' },
+  { key: 'REJECTED', label: 'Declined' },
+  { key: 'EXPIRED', label: 'Expired' }
+];
 
 export default function Offers() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const status = searchParams.get('status') || '';
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   const fetchOffers = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await offerService.getOffers();
-      if (res.success && res.data) {
-        setOffers(res.data);
-      }
+      const res = await offerService.getOffers(status ? { status } : {});
+      setOffers(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch compensation offers.');
+      setError(getErrorMessage(err, 'Failed to fetch offers.'));
     } finally {
       setLoading(false);
     }
@@ -34,80 +42,47 @@ export default function Offers() {
 
   useEffect(() => {
     fetchOffers();
-  }, []);
-
-  const handleAccept = async (id, candidateName) => {
-    if (!window.confirm(`Confirm candidate ${candidateName} has accepted the offer? Status will update to HIRED.`)) {
-      return;
-    }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await offerService.acceptOffer(id);
-      if (res.success) {
-        setFeedback(`Offer for ${candidateName} marked as ACCEPTED! Candidate is now HIRED.`);
-        fetchOffers();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to accept offer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleReject = async (id, candidateName) => {
-    if (!window.confirm(`Mark offer for ${candidateName} as declined? Candidate will transition to REJECTED.`)) {
-      return;
-    }
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await offerService.rejectOffer(id);
-      if (res.success) {
-        setFeedback(`Offer for ${candidateName} marked as DECLINED.`);
-        fetchOffers();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to decline offer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Job Offers & Onboarding</h1>
-          <p className="page-subtitle">Track extended compensation packages, candidate decisions, and hires</p>
+          <h1 className="page-title">Offers & Hiring</h1>
+          <p className="page-subtitle">Track offers, candidate responses, and hires awaiting confirmation</p>
         </div>
-        <Link to="/applications?status=SELECTED" className="btn btn-primary d-flex align-items-center gap-2">
-          <i className="bi bi-file-earmark-plus"></i>
-          <span>Issue Offer to Selected Candidate</span>
+        <Link to="/applications?status=SELECTED" className="btn btn-primary">
+          <i className="bi bi-envelope-paper me-1"></i> Offer to selected candidate
         </Link>
       </div>
 
-      {feedback && (
-        <div className="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
-          <i className="bi bi-check-circle-fill me-2"></i>
-          {feedback}
-          <button type="button" className="btn-close" onClick={() => setFeedback('')}></button>
-        </div>
-      )}
-
       {error && <ErrorMessage message={error} onRetry={fetchOffers} />}
 
+      <div className="stage-tabs mb-3" role="tablist" aria-label="Filter offers">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key || 'all'}
+            type="button"
+            role="tab"
+            aria-selected={status === f.key}
+            className={`stage-tab ${status === f.key ? 'active' : ''}`}
+            onClick={() => setSearchParams(f.key ? { status: f.key } : {}, { replace: true })}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
-        <Loading message="Loading offer packages..." />
+        <Loading message="Loading offers..." />
       ) : offers.length === 0 ? (
-        <div className="card-rf p-5 text-center text-muted">
-          <i className="bi bi-award fs-1 text-secondary mb-2 d-block"></i>
-          <h5>No job offers issued yet</h5>
-          <p className="small">Select candidates in the application pipeline to issue formal employment offers.</p>
-          <Link to="/applications?status=SELECTED" className="btn btn-sm btn-primary">
-            View Selected Candidates
-          </Link>
-        </div>
+        <EmptyState
+          icon="bi-award"
+          title="No offers in this view"
+          message="Offers are created from a selected candidate's application page."
+          action={<Link to="/applications?status=SELECTED" className="btn btn-sm btn-primary">View selected candidates</Link>}
+        />
       ) : (
         <div className="card-rf overflow-hidden">
           <div className="table-responsive">
@@ -115,47 +90,34 @@ export default function Offers() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>Job Requisition</th>
-                  <th>Compensation</th>
-                  <th>Offer Date</th>
-                  <th>Joining Date</th>
-                  <th>Expiration</th>
-                  <th>Offer Status</th>
-                  <th className="text-end">Actions</th>
+                  <th>Job</th>
+                  <th>Salary</th>
+                  <th>Joining</th>
+                  <th>Respond by</th>
+                  <th>Offer</th>
+                  <th>Application</th>
+                  <th className="text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {offers.map((offer) => (
                   <tr key={offer.id}>
                     <td>
-                      <Link to={`/applications/${offer.application_id}`} className="fw-bold text-dark text-decoration-none">
-                        {offer.candidate_name}
-                      </Link>
+                      <div className="fw-semibold">{offer.candidate_name}</div>
                       <div className="small text-muted">{offer.candidate_email}</div>
                     </td>
-                    <td>
-                      <small className="text-secondary">{offer.job_title}</small>
-                    </td>
-                    <td>
-                      <span className="fw-bold text-success fs-6">
-                        {formatCurrency(offer.salary)}
-                      </span>
-                    </td>
-                    <td>
-                      <small className="text-secondary">{formatDate(offer.offer_date)}</small>
-                    </td>
-                    <td>
-                      <small className="text-secondary">{formatDate(offer.joining_date)}</small>
-                    </td>
-                    <td>
-                      <small className="text-danger fw-semibold">{formatDate(offer.expiry_date)}</small>
-                    </td>
-                    <td>
-                      <StatusBadge status={offer.status} />
-                    </td>
+                    <td className="small text-secondary">{offer.job_title}</td>
+                    <td className="fw-semibold">{formatCurrency(offer.salary)}</td>
+                    <td className="small">{formatDate(offer.joining_date)}</td>
+                    <td className={`small ${offer.status === 'EXPIRED' ? 'text-danger' : ''}`}>{formatDate(offer.expiry_date)}</td>
+                    <td><StatusBadge status={offer.status} audience="offer" /></td>
+                    <td><StatusBadge status={offer.application_status} /></td>
                     <td className="text-end">
-                      <Link to={`/applications/${offer.application_id}`} className="btn btn-sm btn-outline-primary" title="View Application Pipeline">
-                        <i className="bi bi-eye me-1"></i> View
+                      <Link
+                        to={`/applications/${offer.application_id}`}
+                        className={`btn btn-sm ${offer.application_status === 'OFFER_ACCEPTED' ? 'btn-success' : 'btn-light border'}`}
+                      >
+                        {offer.application_status === 'OFFER_ACCEPTED' ? 'Confirm hire' : 'Open'}
                       </Link>
                     </td>
                   </tr>

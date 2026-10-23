@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, useAuth, homePathForRole } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
@@ -34,6 +34,8 @@ import CandidateApplicationDetails from './pages/CandidateApplicationDetails';
 import CandidateProfile from './pages/CandidateProfile';
 import CandidateJobs from './pages/CandidateJobs';
 
+const HR_ROLES = ['HR', 'ADMIN'];
+
 /**
  * Authenticated Layout Wrapper
  * Renders fixed sidebar, top navigation, and responsive content canvas.
@@ -43,10 +45,11 @@ function AuthenticatedLayout() {
 
   return (
     <div className="app-container">
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="app-main">
         <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="content-body">
+        <main id="main-content" className="content-body">
           <Outlet />
         </main>
       </div>
@@ -55,13 +58,20 @@ function AuthenticatedLayout() {
 }
 
 /**
+ * Restricts a staff page to HR/Admin (interviewers share the staff layout).
+ */
+function hrOnly(element) {
+  return <ProtectedRoute allowedRoles={HR_ROLES}>{element}</ProtectedRoute>;
+}
+
+/**
  * Role-aware root/fallback redirection
  */
 function RoleRedirect() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
+  if (loading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role === 'CANDIDATE') return <Navigate to="/candidate/dashboard" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={homePathForRole(user?.role)} replace />;
 }
 
 export default function App() {
@@ -88,12 +98,13 @@ export default function App() {
             <Route path="/candidate" element={<Navigate to="/candidate/dashboard" replace />} />
             <Route path="/candidate/dashboard" element={<CandidateDashboard />} />
             <Route path="/candidate/jobs" element={<CandidateJobs />} />
+            <Route path="/candidate/jobs/:id/apply" element={<ApplyJob />} />
             <Route path="/candidate/applications" element={<CandidateApplications />} />
             <Route path="/candidate/applications/:id" element={<CandidateApplicationDetails />} />
             <Route path="/candidate/profile" element={<CandidateProfile />} />
           </Route>
 
-          {/* HR & Recruiter Authenticated Routes */}
+          {/* Staff Routes (HR/Admin; Interviewers only see their interviews) */}
           <Route
             element={
               <ProtectedRoute allowedRoles={['HR', 'ADMIN', 'INTERVIEWER']}>
@@ -101,21 +112,21 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={hrOnly(<Dashboard />)} />
 
-            <Route path="/jobs" element={<Jobs />} />
-            <Route path="/jobs/new" element={<JobForm />} />
-            <Route path="/jobs/:id" element={<JobDetails />} />
-            <Route path="/jobs/:id/edit" element={<JobForm />} />
+            <Route path="/jobs" element={hrOnly(<Jobs />)} />
+            <Route path="/jobs/new" element={hrOnly(<JobForm />)} />
+            <Route path="/jobs/:id" element={hrOnly(<JobDetails />)} />
+            <Route path="/jobs/:id/edit" element={hrOnly(<JobForm />)} />
 
-            <Route path="/candidates" element={<Candidates />} />
-            <Route path="/candidates/:id" element={<CandidateDetails />} />
+            <Route path="/candidates" element={hrOnly(<Candidates />)} />
+            <Route path="/candidates/:id" element={hrOnly(<CandidateDetails />)} />
 
-            <Route path="/applications" element={<Applications />} />
+            <Route path="/applications" element={hrOnly(<Applications />)} />
             <Route path="/applications/:id" element={<ApplicationDetails />} />
 
             <Route path="/interviews" element={<Interviews />} />
-            <Route path="/offers" element={<Offers />} />
+            <Route path="/offers" element={hrOnly(<Offers />)} />
           </Route>
 
           {/* Root & Catch-all Fallbacks */}
@@ -126,4 +137,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

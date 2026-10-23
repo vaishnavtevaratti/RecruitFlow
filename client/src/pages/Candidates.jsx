@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { candidateService } from '../services/candidateService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
+import { formatDate, getErrorMessage } from '../utils/formatters';
 
 export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
@@ -26,7 +27,7 @@ export default function Candidates() {
         setCandidates(res.data);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch candidate profiles.');
+      setError(getErrorMessage(err, 'Failed to fetch candidate profiles.'));
     } finally {
       setLoading(false);
     }
@@ -53,7 +54,7 @@ export default function Candidates() {
       {error && <ErrorMessage message={error} onRetry={fetchCandidates} />}
 
       {/* Search Bar */}
-      <div className="card-rf p-3 mb-4">
+      <div className="card-rf filter-bar mb-4">
         <form onSubmit={handleSearch} className="row g-2 align-items-center">
           <div className="col-12 col-md-10">
             <div className="input-group">
@@ -80,11 +81,7 @@ export default function Candidates() {
       {loading ? (
         <Loading message="Loading candidate profiles..." />
       ) : candidates.length === 0 ? (
-        <div className="card-rf p-5 text-center text-muted">
-          <i className="bi bi-people fs-1 text-secondary mb-2 d-block"></i>
-          <h5>No candidates found</h5>
-          <p className="small">Candidates will automatically appear here when they submit applications.</p>
-        </div>
+        <EmptyState icon="bi-people" title="No candidates found" message="Candidate profiles appear here when people apply or register." />
       ) : (
         <div className="card-rf overflow-hidden">
           <div className="table-responsive">
@@ -96,6 +93,7 @@ export default function Candidates() {
                   <th>Education</th>
                   <th>Experience</th>
                   <th>Skills</th>
+                  <th className="text-center">Applications</th>
                   <th>Registered</th>
                   <th className="text-end">Actions</th>
                 </tr>
@@ -123,6 +121,7 @@ export default function Candidates() {
                         {c.skills}
                       </div>
                     </td>
+                    <td className="text-center fw-semibold">{c.application_count ?? 0}</td>
                     <td>
                       <small className="text-secondary">{formatDate(c.created_at)}</small>
                     </td>

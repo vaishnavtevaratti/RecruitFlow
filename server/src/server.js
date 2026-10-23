@@ -18,6 +18,11 @@ async function startServer() {
     console.log('Starting RecruitFlow Backend Server...');
     console.log('--------------------------------------------------');
 
+    if (!process.env.JWT_SECRET) {
+        console.error('[FATAL] JWT_SECRET is not set in server/.env. Refusing to start without a signing secret.');
+        process.exit(1);
+    }
+
     // Test database connection before opening port
     const dbConnected = await checkDatabaseConnection();
     if (!dbConnected) {

@@ -9,7 +9,22 @@ import { jobService } from '../services/jobService';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
+import Notice from '../components/Notice';
+import { formatDate, getErrorMessage } from '../utils/formatters';
+
+const STAGES = [
+  'APPLIED',
+  'SCREENING',
+  'SHORTLISTED',
+  'INTERVIEW_SCHEDULED',
+  'INTERVIEWED',
+  'SELECTED',
+  'OFFER_SENT',
+  'OFFER_ACCEPTED',
+  'HIRED',
+  'REJECTED'
+];
 
 export default function Applications() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,24 +33,17 @@ export default function Applications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
-  const jobIdParam = searchParams.get('job_id') || '';
-  const statusParam = searchParams.get('status') || '';
-  const searchParam = searchParams.get('search') || '';
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const statusFilter = searchParams.get('status') || '';
+  const jobFilter = searchParams.get('job_id') || '';
 
-  const [search, setSearch] = useState(searchParam);
-  const [statusFilter, setStatusFilter] = useState(statusParam);
-  const [jobFilter, setJobFilter] = useState(jobIdParam);
-
-  const fetchJobs = async () => {
-    try {
-      const res = await jobService.getJobs();
-      if (res.success && res.data) {
-        setJobs(res.data);
-      }
-    } catch {
-      // Non-critical if jobs list fails
-    }
+  const setFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
   };
 
   const fetchApplications = async () => {
@@ -46,50 +54,47 @@ export default function Applications() {
       if (search.trim()) params.search = search.trim();
       if (statusFilter) params.status = statusFilter;
       if (jobFilter) params.job_id = jobFilter;
-
       const res = await applicationService.getApplications(params);
-      if (res.success && res.data) {
-        setApplications(res.data);
-      }
+      setApplications(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch candidate applications.');
+      setError(getErrorMessage(err, 'Failed to fetch applications.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchJobs();
+    jobService.getJobs().then((res) => setJobs(res.data || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
     fetchApplications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, jobFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setFilter('search', search.trim());
     fetchApplications();
   };
 
-  const handleQuickScreen = async (id, name) => {
+  const quickAction = async (app, action) => {
     try {
+      setBusyId(app.id);
       setError('');
-      await applicationService.screenApplication(id);
-      setFeedback(`Application for ${name} moved to SCREENING.`);
-      fetchApplications();
+      if (action === 'screen') {
+        await applicationService.screenApplication(app.id);
+        setFeedback(`${app.candidate_name} moved to screening.`);
+      } else {
+        await applicationService.shortlistApplication(app.id);
+        setFeedback(`${app.candidate_name} shortlisted. Schedule an interview from the application page.`);
+      }
+      await fetchApplications();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to screen candidate.');
-    }
-  };
-
-  const handleQuickShortlist = async (id, name) => {
-    try {
-      setError('');
-      await applicationService.shortlistApplication(id);
-      setFeedback(`Candidate ${name} SHORTLISTED successfully.`);
-      fetchApplications();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to shortlist candidate.');
+      setFeedback('');
+      setError(getErrorMessage(err, 'Action failed.'));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -97,89 +102,58 @@ export default function Applications() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Application Pipeline</h1>
-          <p className="page-subtitle">Track candidate progression from initial screening to final hire</p>
+          <h1 className="page-title">Applications</h1>
+          <p className="page-subtitle">Move candidates through screening, interviews, offers, and hiring</p>
         </div>
       </div>
 
-      {feedback && (
-        <div className="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
-          <i className="bi bi-check-circle-fill me-2"></i>
-          {feedback}
-          <button type="button" className="btn-close" onClick={() => setFeedback('')}></button>
-        </div>
-      )}
-
+      <Notice message={feedback} onClose={() => setFeedback('')} />
       {error && <ErrorMessage message={error} onRetry={fetchApplications} />}
 
-      {/* Filter and Search Bar */}
-      <div className="card-rf p-3 mb-4">
+      <div className="stage-tabs mb-3" role="tablist" aria-label="Filter by stage">
+        <button type="button" role="tab" aria-selected={!statusFilter} className={`stage-tab ${!statusFilter ? 'active' : ''}`} onClick={() => setFilter('status', '')}>
+          All
+        </button>
+        {STAGES.map((s) => (
+          <button key={s} type="button" role="tab" aria-selected={statusFilter === s} className={`stage-tab ${statusFilter === s ? 'active' : ''}`} onClick={() => setFilter('status', s)}>
+            {s.replace(/_/g, ' ').toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      <div className="card-rf filter-bar mb-4">
         <form onSubmit={handleSearchSubmit} className="row g-2 align-items-center">
-          <div className="col-12 col-md-4">
+          <div className="col-12 col-md-6">
             <div className="input-group">
-              <span className="input-group-text bg-white border-end-0 text-muted">
-                <i className="bi bi-search"></i>
-              </span>
+              <span className="input-group-text"><i className="bi bi-search"></i></span>
               <input
-                type="text"
-                className="form-control border-start-0"
-                placeholder="Search by candidate or job..."
+                type="search"
+                className="form-control"
+                placeholder="Search candidate name, email, or job title"
+                aria-label="Search applications"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
           </div>
-
-          <div className="col-6 col-md-3">
-            <select
-              className="form-select"
-              value={jobFilter}
-              onChange={(e) => setJobFilter(e.target.value)}
-            >
-              <option value="">All Requisitions</option>
+          <div className="col-8 col-md-4">
+            <select className="form-select" aria-label="Filter by job" value={jobFilter} onChange={(e) => setFilter('job_id', e.target.value)}>
+              <option value="">All jobs</option>
               {jobs.map((j) => (
                 <option key={j.id} value={j.id}>{j.title}</option>
               ))}
             </select>
           </div>
-
-          <div className="col-6 col-md-3">
-            <select
-              className="form-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All Pipeline Stages</option>
-              <option value="APPLIED">APPLIED</option>
-              <option value="SCREENING">SCREENING</option>
-              <option value="SHORTLISTED">SHORTLISTED</option>
-              <option value="INTERVIEW_SCHEDULED">INTERVIEW_SCHEDULED</option>
-              <option value="INTERVIEWED">INTERVIEWED</option>
-              <option value="SELECTED">SELECTED</option>
-              <option value="OFFER_SENT">OFFER_SENT</option>
-              <option value="OFFER_ACCEPTED">OFFER_ACCEPTED</option>
-              <option value="HIRED">HIRED</option>
-              <option value="REJECTED">REJECTED</option>
-            </select>
-          </div>
-
-          <div className="col-12 col-md-2">
-            <button type="submit" className="btn btn-primary w-100">
-              Filter Pipeline
-            </button>
+          <div className="col-4 col-md-2">
+            <button type="submit" className="btn btn-outline-primary w-100">Search</button>
           </div>
         </form>
       </div>
 
-      {/* Applications Table */}
       {loading ? (
         <Loading message="Loading applications..." />
       ) : applications.length === 0 ? (
-        <div className="card-rf p-5 text-center text-muted">
-          <i className="bi bi-inbox fs-1 text-secondary mb-2 d-block"></i>
-          <h5>No applications found</h5>
-          <p className="small">No candidate applications match the selected pipeline criteria.</p>
-        </div>
+        <EmptyState icon="bi-inbox" title="No applications found" message="No applications match the selected filters." />
       ) : (
         <div className="card-rf overflow-hidden">
           <div className="table-responsive">
@@ -187,9 +161,9 @@ export default function Applications() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>Job Requisition</th>
-                  <th>Applied On</th>
-                  <th>Pipeline Status</th>
+                  <th>Job</th>
+                  <th>Applied</th>
+                  <th>Stage</th>
                   <th className="text-end">Actions</th>
                 </tr>
               </thead>
@@ -197,46 +171,37 @@ export default function Applications() {
                 {applications.map((app) => (
                   <tr key={app.id}>
                     <td>
-                      <Link to={`/applications/${app.id}`} className="fw-bold text-dark text-decoration-none">
-                        {app.candidate_name}
-                      </Link>
-                      <div className="small text-muted">{app.candidate_email}</div>
+                      <div className="d-flex align-items-center gap-2">
+                        <div className="avatar-circle avatar-sm" aria-hidden="true">{app.candidate_name?.charAt(0).toUpperCase()}</div>
+                        <div className="min-w-0">
+                          <Link to={`/applications/${app.id}`} className="fw-semibold text-dark text-decoration-none">
+                            {app.candidate_name}
+                          </Link>
+                          <div className="small text-muted text-truncate">{app.candidate_email}</div>
+                        </div>
+                      </div>
                     </td>
                     <td>
-                      <Link to={`/jobs/${app.job_id}`} className="text-secondary text-decoration-none">
-                        {app.job_title}
-                      </Link>
+                      <Link to={`/jobs/${app.job_id}`} className="text-secondary text-decoration-none">{app.job_title}</Link>
                       <div className="small text-muted">{app.job_department}</div>
                     </td>
-                    <td>
-                      <small className="text-secondary">{formatDate(app.applied_at)}</small>
-                    </td>
-                    <td>
-                      <StatusBadge status={app.status} />
-                    </td>
+                    <td className="small text-secondary">{formatDate(app.applied_at)}</td>
+                    <td><StatusBadge status={app.status} /></td>
                     <td className="text-end">
-                      <div className="btn-group btn-group-sm">
-                        <Link to={`/applications/${app.id}`} className="btn btn-outline-primary" title="View Pipeline">
-                          Manage Stage <i className="bi bi-arrow-right"></i>
-                        </Link>
+                      <div className="d-inline-flex gap-1">
                         {app.status === 'APPLIED' && (
-                          <button
-                            className="btn btn-outline-secondary"
-                            onClick={() => handleQuickScreen(app.id, app.candidate_name)}
-                            title="Screen Candidate"
-                          >
-                            Screen
+                          <button type="button" className="btn btn-sm btn-light border" disabled={busyId === app.id} onClick={() => quickAction(app, 'screen')}>
+                            {busyId === app.id ? <span className="spinner-border spinner-border-sm" aria-hidden="true"></span> : 'Screen'}
                           </button>
                         )}
                         {app.status === 'SCREENING' && (
-                          <button
-                            className="btn btn-outline-success"
-                            onClick={() => handleQuickShortlist(app.id, app.candidate_name)}
-                            title="Shortlist Candidate"
-                          >
-                            Shortlist
+                          <button type="button" className="btn btn-sm btn-outline-success" disabled={busyId === app.id} onClick={() => quickAction(app, 'shortlist')}>
+                            {busyId === app.id ? <span className="spinner-border spinner-border-sm" aria-hidden="true"></span> : 'Shortlist'}
                           </button>
                         )}
+                        <Link to={`/applications/${app.id}`} className="btn btn-sm btn-primary">
+                          Open <i className="bi bi-arrow-right"></i>
+                        </Link>
                       </div>
                     </td>
                   </tr>

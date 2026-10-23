@@ -405,19 +405,29 @@ async function runTestSuite() {
             logFail('21. POST /api/offers', JSON.stringify(offerRes.data));
         }
 
-        // Test 22: Accept Offer & Verify HIRED (OFFER_SENT -> OFFER_ACCEPTED -> HIRED)
+        // Test 22: Record offer acceptance (OFFER_SENT -> OFFER_ACCEPTED, hiring not automatic)
         const acceptRes = await request(`/api/offers/${testOfferId}/accept`, {
             method: 'PATCH'
         });
         if (acceptRes.status === 200 && acceptRes.data?.data?.status === 'ACCEPTED') {
-            const finalApp = await request(`/api/applications/${testApplicationId}`);
-            if (finalApp.data?.data?.status === 'HIRED') {
-                logPass('22. PATCH /api/offers/:id/accept (Candidate HIRED)', `Offer: ACCEPTED, App: HIRED`);
+            const acceptedApp = await request(`/api/applications/${testApplicationId}`);
+            if (acceptedApp.data?.data?.status === 'OFFER_ACCEPTED') {
+                logPass('22. PATCH /api/offers/:id/accept (offer ACCEPTED)', `Offer: ACCEPTED, App: OFFER_ACCEPTED`);
             } else {
-                logFail('22. App status after offer acceptance', finalApp.data?.data?.status);
+                logFail('22. App status after offer acceptance', acceptedApp.data?.data?.status);
             }
         } else {
             logFail('22. PATCH /api/offers/:id/accept', JSON.stringify(acceptRes.data));
+        }
+
+        // Test 22b: HR completes hiring (OFFER_ACCEPTED -> HIRED)
+        const hireRes = await request(`/api/applications/${testApplicationId}/hire`, {
+            method: 'PATCH'
+        });
+        if (hireRes.status === 200 && hireRes.data?.data?.status === 'HIRED') {
+            logPass('22b. PATCH /api/applications/:id/hire (Candidate HIRED)', 'App: HIRED');
+        } else {
+            logFail('22b. PATCH /api/applications/:id/hire', JSON.stringify(hireRes.data));
         }
 
         // Test 23: Dashboard Stats from real MySQL

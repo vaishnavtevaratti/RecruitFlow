@@ -26,6 +26,9 @@ const pool = mysql.createPool({
     password: DB_PASSWORD,
     database: DB_NAME,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    // Return DATE columns as 'YYYY-MM-DD' strings so calendar dates (deadlines,
+    // offer/joining/expiry dates) never shift across timezones when serialized.
+    dateStrings: ['DATE'],
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,

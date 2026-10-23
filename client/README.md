@@ -85,5 +85,5 @@ The UI reflects the backend recruitment state machine:
 2. **Interview Prerequisite**: Only `SHORTLISTED` applications display interview scheduling options.
 3. **Selection Invariant**: Candidate must complete an interview with a `PASS` evaluation before being eligible for `SELECTED`.
 4. **Offer Invariant**: Offers can only be generated for `SELECTED` candidates.
-5. **Hiring Invariant**: Valid `SENT` offers transitioned to `ACCEPTED` explicitly move the candidate to `HIRED`.
+5. **Hiring Invariant**: A candidate accepting a valid `SENT` offer moves the application to `OFFER_ACCEPTED`; HR then confirms the hire (`HIRED`).
 6. **Rejection Invariant**: An application marked `REJECTED` permanently stops subsequent pipeline stages.

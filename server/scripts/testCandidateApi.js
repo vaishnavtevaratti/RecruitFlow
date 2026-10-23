@@ -546,11 +546,27 @@ async function runCandidateTests() {
             logFail('Successful acceptance changes offer to ACCEPTED', `Offer status is ${candVerifyOffer.data?.data?.offer?.status}`);
         }
 
-        // 32. Successful acceptance changes application to HIRED
-        if (candVerifyOffer.data?.data?.application?.status === 'HIRED') {
-            logPass('Successful acceptance changes application to HIRED', 'Application: HIRED');
+        // 32. Successful acceptance changes application to OFFER_ACCEPTED (hiring is a separate HR step)
+        if (candVerifyOffer.data?.data?.application?.status === 'OFFER_ACCEPTED') {
+            logPass('Successful acceptance changes application to OFFER_ACCEPTED', 'Application: OFFER_ACCEPTED');
         } else {
-            logFail('Successful acceptance changes application to HIRED', `App status is ${candVerifyOffer.data?.data?.application?.status}`);
+            logFail('Successful acceptance changes application to OFFER_ACCEPTED', `App status is ${candVerifyOffer.data?.data?.application?.status}`);
+        }
+
+        // 32b. Candidate cannot perform the HR hiring step
+        const candHireRes = await request(`/api/applications/${testAppId}/hire`, { method: 'PATCH', token: candidateToken });
+        if (candHireRes.status === 403) {
+            logPass('Candidate cannot mark themselves HIRED', 'HTTP 403 Forbidden verified');
+        } else {
+            logFail('Candidate cannot mark themselves HIRED', `Expected 403, got ${candHireRes.status}`);
+        }
+
+        // 32c. HR completes hiring
+        const hrHireRes = await request(`/api/applications/${testAppId}/hire`, { method: 'PATCH', token: hrToken });
+        if (hrHireRes.status === 200 && hrHireRes.data?.data?.status === 'HIRED') {
+            logPass('HR completes hiring after acceptance', 'Application: HIRED');
+        } else {
+            logFail('HR completes hiring after acceptance', hrHireRes.data?.message);
         }
 
         // 33. HR sees ACCEPTED

@@ -1,46 +1,41 @@
 /**
- * RecruitFlow — Interviews Management Page
+ * RecruitFlow — Interviews Page
+ * HR/Admin see every round; interviewers see only rounds assigned to them (server-enforced).
+ * Evaluations and rescheduling happen on the application page so they always act on
+ * the latest persisted state.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { interviewService } from '../services/interviewService';
+import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import Modal from '../components/Modal';
-import { formatDateTime } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
+import { formatDateTime, getErrorMessage } from '../utils/formatters';
+
+const TABS = [
+  { key: 'pending', label: 'Awaiting evaluation' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'all', label: 'All' }
+];
 
 export default function Interviews() {
+  const { isHR } = useAuth();
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
-
-  // Evaluation modal state
-  const [isEvaluateOpen, setIsEvaluateOpen] = useState(false);
-  const [selectedInterview, setSelectedInterview] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [evaluateForm, setEvaluateForm] = useState({
-    technical_rating: 8,
-    communication_rating: 8,
-    problem_solving_rating: 8,
-    overall_rating: 8,
-    feedback: '',
-    result: 'PASS'
-  });
+  const [tab, setTab] = useState('pending');
 
   const fetchInterviews = async () => {
     try {
       setLoading(true);
       setError('');
       const res = await interviewService.getInterviews();
-      if (res.success && res.data) {
-        setInterviews(res.data);
-      }
+      setInterviews(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch interview rounds.');
+      setError(getErrorMessage(err, 'Failed to fetch interviews.'));
     } finally {
       setLoading(false);
     }
@@ -50,73 +45,55 @@ export default function Interviews() {
     fetchInterviews();
   }, []);
 
-  const handleOpenEvaluate = (interview) => {
-    setSelectedInterview(interview);
-    setEvaluateForm({
-      technical_rating: interview.technical_rating || 8,
-      communication_rating: interview.communication_rating || 8,
-      problem_solving_rating: interview.problem_solving_rating || 8,
-      overall_rating: interview.overall_rating || 8,
-      feedback: interview.feedback || '',
-      result: interview.result === 'PENDING' ? 'PASS' : interview.result
-    });
-    setIsEvaluateOpen(true);
-  };
+  const filtered = useMemo(() => {
+    if (tab === 'pending') return interviews.filter((iv) => iv.result === 'PENDING');
+    if (tab === 'completed') return interviews.filter((iv) => iv.result !== 'PENDING');
+    return interviews;
+  }, [interviews, tab]);
 
-  const handleEvaluateSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedInterview) return;
-
-    try {
-      setSubmitting(true);
-      setError('');
-      const res = await interviewService.evaluateInterview(selectedInterview.id, evaluateForm);
-      if (res.success) {
-        setFeedback(`Evaluation for round "${selectedInterview.type}" recorded successfully.`);
-        setIsEvaluateOpen(false);
-        fetchInterviews();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit interview evaluation.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const now = new Date();
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Interviews & Evaluations</h1>
-          <p className="page-subtitle">Schedule rounds, record multi-criteria scores, and assess candidates</p>
+          <h1 className="page-title">{isHR ? 'Interviews' : 'My Interviews'}</h1>
+          <p className="page-subtitle">
+            {isHR ? 'Scheduled rounds, evaluations, and outcomes' : 'Interviews assigned to you. Open one to record your evaluation.'}
+          </p>
         </div>
-        <Link to="/applications?status=SHORTLISTED" className="btn btn-primary d-flex align-items-center gap-2">
-          <i className="bi bi-calendar-plus"></i>
-          <span>Schedule New Round</span>
-        </Link>
+        {isHR && (
+          <Link to="/applications?status=SHORTLISTED" className="btn btn-primary">
+            <i className="bi bi-calendar-plus me-1"></i> Schedule from shortlist
+          </Link>
+        )}
       </div>
-
-      {feedback && (
-        <div className="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
-          <i className="bi bi-check-circle-fill me-2"></i>
-          {feedback}
-          <button type="button" className="btn-close" onClick={() => setFeedback('')}></button>
-        </div>
-      )}
 
       {error && <ErrorMessage message={error} onRetry={fetchInterviews} />}
 
+      <div className="stage-tabs mb-3" role="tablist" aria-label="Filter interviews">
+        {TABS.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={`stage-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label}
+            <span className="stage-tab-count">
+              {t.key === 'pending'
+                ? interviews.filter((iv) => iv.result === 'PENDING').length
+                : t.key === 'completed'
+                ? interviews.filter((iv) => iv.result !== 'PENDING').length
+                : interviews.length}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {loading ? (
-        <Loading message="Loading interview rounds..." />
-      ) : interviews.length === 0 ? (
-        <div className="card-rf p-5 text-center text-muted">
-          <i className="bi bi-calendar-event fs-1 text-secondary mb-2 d-block"></i>
-          <h5>No interviews scheduled</h5>
-          <p className="small">Shortlist candidates in the application pipeline to schedule evaluation rounds.</p>
-          <Link to="/applications?status=SHORTLISTED" className="btn btn-sm btn-primary">
-            View Shortlisted Candidates
-          </Link>
-        </div>
+        <Loading message="Loading interviews..." />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="bi-calendar-event"
+          title="No interviews here"
+          message={isHR ? 'Shortlist candidates in the pipeline to schedule interviews.' : 'You have no interviews in this view.'}
+        />
       ) : (
         <div className="card-rf overflow-hidden">
           <div className="table-responsive">
@@ -124,162 +101,45 @@ export default function Interviews() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>Requisition & Round</th>
+                  <th>Round</th>
                   <th>Interviewer</th>
-                  <th>Scheduled Time</th>
+                  <th>When</th>
                   <th>Score</th>
                   <th>Result</th>
-                  <th className="text-end">Actions</th>
+                  <th className="text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {interviews.map((iv) => (
-                  <tr key={iv.id}>
-                    <td>
-                      <Link to={`/applications/${iv.application_id}`} className="fw-bold text-dark text-decoration-none">
-                        {iv.candidate_name}
-                      </Link>
-                      <div className="small text-muted">{iv.candidate_email}</div>
-                    </td>
-                    <td>
-                      <div className="fw-medium">{iv.type}</div>
-                      <small className="text-secondary">{iv.job_title}</small>
-                    </td>
-                    <td>
-                      <small className="text-secondary">
-                        <i className="bi bi-person me-1"></i>{iv.interviewer_name}
-                      </small>
-                    </td>
-                    <td>
-                      <small className="text-secondary">{formatDateTime(iv.scheduled_at)}</small>
-                    </td>
-                    <td>
-                      {iv.overall_rating ? (
-                        <span className="badge bg-light text-primary border fw-bold fs-6">
-                          {iv.overall_rating}/10
-                        </span>
-                      ) : (
-                        <span className="text-muted small">Not rated</span>
-                      )}
-                    </td>
-                    <td>
-                      <StatusBadge status={iv.result} />
-                    </td>
-                    <td className="text-end">
-                      <div className="btn-group btn-group-sm">
-                        <Link to={`/applications/${iv.application_id}`} className="btn btn-outline-secondary" title="View Application">
-                          <i className="bi bi-eye"></i>
+                {filtered.map((iv) => {
+                  const overdue = iv.result === 'PENDING' && new Date(iv.scheduled_at) < now;
+                  const canEvaluate = iv.result === 'PENDING' && iv.application_status === 'INTERVIEW_SCHEDULED';
+                  return (
+                    <tr key={iv.id}>
+                      <td>
+                        <div className="fw-semibold">{iv.candidate_name}</div>
+                        <div className="small text-muted">{iv.job_title}</div>
+                      </td>
+                      <td>{iv.type}</td>
+                      <td className="small text-secondary">{iv.interviewer_name}</td>
+                      <td className="small">
+                        {formatDateTime(iv.scheduled_at)}
+                        {overdue && <div className="small text-warning fw-semibold">Evaluation due</div>}
+                      </td>
+                      <td>{iv.overall_rating ? <span className="fw-semibold">{iv.overall_rating}/10</span> : <span className="text-muted small">—</span>}</td>
+                      <td><StatusBadge status={iv.result} /></td>
+                      <td className="text-end">
+                        <Link to={`/applications/${iv.application_id}`} className={`btn btn-sm ${canEvaluate ? 'btn-primary' : 'btn-light border'}`}>
+                          {canEvaluate ? 'Evaluate' : 'View'}
                         </Link>
-                        <button
-                          className="btn btn-outline-primary"
-                          onClick={() => handleOpenEvaluate(iv)}
-                          title="Evaluate Round"
-                        >
-                          <i className="bi bi-pencil-square me-1"></i>
-                          {iv.result === 'PENDING' ? 'Evaluate' : 'Update'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
-
-      {/* Evaluation Modal */}
-      <Modal
-        title={`Evaluate Interview — ${selectedInterview?.candidate_name || ''}`}
-        isOpen={isEvaluateOpen}
-        onClose={() => setIsEvaluateOpen(false)}
-      >
-        <form onSubmit={handleEvaluateSubmit}>
-          <div className="row g-3 mb-3">
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Technical Proficiency (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.technical_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, technical_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Communication (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.communication_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, communication_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Problem Solving (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.problem_solving_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, problem_solving_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-            <div className="col-6">
-              <label className="form-label fw-semibold small">Overall Rating (1-10)</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                className="form-control"
-                value={evaluateForm.overall_rating}
-                onChange={(e) => setEvaluateForm({ ...evaluateForm, overall_rating: Number(e.target.value) })}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label fw-semibold">Feedback & Notes</label>
-            <textarea
-              className="form-control"
-              rows="3"
-              value={evaluateForm.feedback}
-              onChange={(e) => setEvaluateForm({ ...evaluateForm, feedback: e.target.value })}
-              placeholder="Candidate feedback and recommendations..."
-              required
-            ></textarea>
-          </div>
-
-          <div className="mb-4">
-            <label className="form-label fw-semibold">Outcome Recommendation</label>
-            <select
-              className="form-select"
-              value={evaluateForm.result}
-              onChange={(e) => setEvaluateForm({ ...evaluateForm, result: e.target.value })}
-            >
-              <option value="PASS">PASS — Recommend for Selection</option>
-              <option value="FAIL">FAIL — Do Not Recommend</option>
-            </select>
-          </div>
-
-          <div className="d-flex justify-content-end gap-2 pt-3 border-top">
-            <button type="button" className="btn btn-outline-secondary" onClick={() => setIsEvaluateOpen(false)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Submitting...' : 'Save Evaluation'}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

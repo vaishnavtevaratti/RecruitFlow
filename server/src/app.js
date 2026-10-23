@@ -20,12 +20,18 @@ const candidatePortalRoutes = require('./routes/candidatePortalRoutes');
 const { notFoundHandler, globalErrorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
+app.disable('x-powered-by');
 
-// Enable CORS for frontend clients
-app.use(cors());
+// CORS: restrict to CORS_ORIGIN (comma-separated) when configured; otherwise allow all
+// origins, which is safe here because auth uses Bearer tokens rather than cookies.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+app.use(cors(allowedOrigins.length > 0 ? { origin: allowedOrigins } : undefined));
 
 // Parse incoming JSON payloads
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 // -----------------------------------------------------------------------------
 // Health Check Endpoints

@@ -57,145 +57,161 @@ RecruitFlow/
 │   │   ├── controllers/               # Business workflow controllers
 │   │   ├── middleware/                # JWT auth, RBAC authorization, and input validation
 │   │   ├── routes/                    # REST API route definitions
-│   │   ├── services/                  # Core transactional database logic
-│   │   └── utils/workflow.js          # Recruitment lifecycle state machine engine
+│   │   ├── services/                  # recruitmentService (transactional workflow) + skillMatchService
+│   │   └── utils/                     # workflow.js state machine, dates.js, jwt.js
 │   └── scripts/
-│       ├── verifyDatabase.js          # Phase 1 database verification suite (20/20 checks)
-│       ├── testApi.js                 # Phase 2 HR backend API regression suite (24/24 tests)
-│       ├── migratePhase4.js           # Safe Phase 4 database migration script
-│       └── testCandidateApi.js        # Phase 4 Candidate Portal verification suite (36/36 tests)
+│       ├── setupDatabase.js           # Creates schema + seed data (idempotent)
+│       ├── verifyDatabase.js          # Database verification (20 checks)
+│       ├── migratePhase4.js           # Safe Phase 4 migration script
+│       ├── testApi.js                 # HR API regression suite
+│       ├── testCandidateApi.js        # Candidate portal + workflow suite
+│       ├── testSecurity.js            # Authorization, IDOR, validation, concurrency, rollback suite
+│       ├── testSkillMatch.js          # Skill-matching unit tests (no DB needed)
+│       └── e2eWorkflow.js             # End-to-end hire + declined-offer scenarios
 └── database/
-    └── schema.sql                     # Complete MySQL relational schema
+    ├── schema.sql                     # Complete MySQL relational schema
+    └── seed.sql                       # Demo seed data
 ```
 
 ---
 
 ## 3. Recruitment Lifecycle & State Model
 
-The system enforces a strict state machine across the recruitment workflow:
-
 ```
-[APPLIED]
-   ↓  (HR Screening)
-[SCREENING]
-   ↓  (HR Shortlisting)
-[SHORTLISTED]
-   ↓  (HR Interview Scheduling)
-[INTERVIEW_SCHEDULED]
-   ↓  (Interviewer Evaluation)
-[INTERVIEWED]
-   ↓  (HR Candidate Selection)
-[SELECTED]
-   ↓  (HR Offer Generation)
-[OFFER_SENT]
-   ↓  (Candidate Offer Acceptance)
-[OFFER_ACCEPTED]
-   ↓
-[HIRED]
+Job:          DRAFT ──publish──▶ PUBLISHED ──close──▶ CLOSED
+
+Application:  APPLIED ─screen─▶ SCREENING ─shortlist─▶ SHORTLISTED ─schedule interview─▶ INTERVIEW_SCHEDULED
+              ─evaluate─▶ INTERVIEWED ─select (needs PASS)─▶ SELECTED ─create offer─▶ OFFER_SENT
+              ─candidate accepts─▶ OFFER_ACCEPTED ─HR confirms hire─▶ HIRED
+
+              REJECTED (terminal): HR rejection, or the candidate declines the offer.
+Offer:        SENT ─▶ ACCEPTED | REJECTED (declined) | EXPIRED
 ```
 
-- **Rejection**: Terminal state `REJECTED` can be triggered at screening, shortlisting, interview evaluation, or offer stages. Once rejected or hired, terminal states cannot be overridden.
-- **Mutual HR & Candidate Sync**: Candidate accepting an offer immediately updates `offers.status = 'ACCEPTED'` and `applications.status = 'HIRED'`, immediately visible to both Candidate and HR.
+Rules enforced in the backend (`server/src/utils/workflow.js`, `recruitmentService.js`):
+
+- Only `PUBLISHED` jobs whose deadline has not passed accept applications and appear on job boards.
+- A candidate can apply to a job once (checked in code and by the `UNIQUE(candidate_id, job_id)` constraint).
+- Screening must happen before shortlisting; only shortlisted candidates can be interviewed.
+- Interviews must be scheduled in the future, with an HR/Admin/Interviewer account as interviewer. Pending interviews can be rescheduled.
+- An interview can be evaluated once; selection requires the latest interview result to be `PASS`.
+- Only `SELECTED` applications can receive an offer (one per application). Expiry must not be in the past, and joining/expiry dates cannot precede the offer date.
+- **Accepting an offer moves the application to `OFFER_ACCEPTED`. HR then confirms with "Mark as hired" (`PATCH /api/applications/:id/hire`).** Hiring never happens automatically.
+- An offer past its expiry date is reported as `EXPIRED` everywhere (computed on read; stored rows are not rewritten) and can no longer be accepted or declined. HR can then reject the application, which records the offer as `EXPIRED`.
+- HR cannot reject an application while an unexpired offer awaits the candidate, or after the candidate accepted.
+- `REJECTED` and `HIRED` are terminal.
+- Every status change runs in a MySQL transaction that locks the application row (`SELECT … FOR UPDATE`), so double clicks and concurrent requests cannot both pass a state check.
 
 ---
 
-## 4. User Roles & Access Control
+## 4. Roles & Access Control
 
-| Role | Permissions & Scope |
+| Role | Can do |
 | :--- | :--- |
-| **HR / ADMIN** | Create & publish jobs, review talent pool, screen & shortlist applicants, schedule interviews, evaluate, select candidates, generate & send offers, view system-wide recruitment analytics. |
-| **INTERVIEWER** | View assigned candidate applications, conduct scheduled rounds, record structured ratings (Technical, Communication, Problem Solving, Overall) and pass/fail evaluations. |
-| **CANDIDATE** | Register account, log in, browse published openings, submit applications (with prefilled profile), view application status, track recruitment timeline, view interview details & links, review job offers, and accept or decline offers. |
+| **HR / ADMIN** | Jobs (create, edit, publish, close), applications pipeline, candidates, interviews (schedule, reschedule, evaluate), offers, hiring, dashboard, skill matching. |
+| **INTERVIEWER** | Sees and evaluates only interviews assigned to them, and only the applications behind those interviews. |
+| **CANDIDATE** | Own profile, browse open jobs, apply, track own applications and interviews, accept/decline own offers. |
+
+- Every API route checks the JWT and role on the server; UI hiding is only a convenience.
+- Candidate endpoints derive identity from the JWT. `candidate_id`/email in request bodies are ignored, and other candidates' applications return `403`.
+- The public application form refuses emails that belong to a registered account (those users must sign in), so nobody can add applications to someone else's account.
 
 ---
 
-## 5. Candidate Portal (Phase 4 Features)
+## 5. Features
 
-1. **Candidate Registration & Login**:
-   - `POST /api/auth/candidate/signup`: Creates account with role `CANDIDATE`, securely hashes password with `bcryptjs`, and automatically links to any existing applicant records matching email.
-   - `POST /api/auth/candidate/login`: Returns JWT token containing user identity and candidate reference.
-2. **Role-Based Protection & IDOR Prevention**:
-   - Candidates are restricted to `/candidate/*` routes and endpoints.
-   - All candidate queries derive `candidate_id` exclusively from the authenticated JWT token — never from user-supplied request parameters.
-   - Accessing another candidate's application returns `403 Forbidden`.
-3. **Candidate Dashboard**:
-   - Real-time statistics: Total Applied, Active Applications, Interviews, Selected, Offers, Hired.
-   - Recent applications list with direct tracking links.
-4. **My Applications & Visual Timeline**:
-   - Interactive 9-stage progression timeline distinguishing **Completed**, **Current Stage**, and **Upcoming**.
-   - Clear terminal state display if rejected.
-5. **Interview Tracking**:
-   - Real-time display of scheduled date, time, interview type, and meeting links.
-   - Ratings and pass/fail results display upon evaluation completion (hidden while pending).
-6. **Offer Review & Acceptance**:
-   - Displays salary, offer date, joining date, and expiry date.
-   - **Accept Offer**: Validates non-expired status and candidate ownership, and executes an atomic MySQL transaction transitioning offer to `ACCEPTED` and application to `HIRED`.
-   - **Decline Offer**: Allows candidate to decline, setting offer to `REJECTED`.
+**HR portal:** live dashboard (open jobs, awaiting screening, pending interviews, active/expired offers, ready to hire, hired); job management with validation and confirm dialogs; application pipeline with stage tabs, search and job filter; application page with stage stepper, interview scheduling/rescheduling/evaluation, offer creation, hire and reject actions; interviews and offers lists with status filters; rule-based skill matching.
+
+**Candidate portal:** signup/login, dashboard, job board (marks jobs already applied to), apply flow that saves profile edits, application list with filters, application page with progress timeline, interview details, and offer accept/decline with confirmation; profile editing.
+
+**Public pages:** careers board, guest application form, application status lookup (application ID + email).
+
+### Skill matching (rule-based, advisory)
+
+`GET /api/applications/:id/skill-match` (HR/Admin) compares the job's required skills with the candidate's skills, experience and education text.
+
+- **Score** = required skills found in the profile ÷ required skills × 100. Matching uses exact names, common aliases (e.g. "NodeJS" = "Node.js") and a few related-skill rules (e.g. MySQL counts as SQL).
+- Output lists matched skills with their evidence, skills **not mentioned (unverified, not confirmed missing)**, other candidate skills, and suggested interview questions.
+- **Limitations:** keyword matching cannot judge depth or recency; linked resumes are not read; the score is not a prediction of job performance.
+- It is advisory only. It never shortlists, rejects, selects or hires, and it does not use or infer sensitive personal attributes.
+- **No external AI provider is used, and no data leaves the server.** An optional LLM-generated summary is not installed; see Known Limitations.
 
 ---
 
-## 6. Demo Credentials
+## 6. Environment Variables (`server/.env`, template in `server/.env.example`)
 
-### HR Manager (Staff Portal)
-- **URL**: `http://127.0.0.1:5173/login`
-- **Email**: `hr@recruitflow.com`
-- **Password**: `Admin@123`
+| Variable | Purpose |
+| :--- | :--- |
+| `PORT` | API port (default 5000) |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL` | MySQL connection |
+| `JWT_SECRET` | **Required.** The server refuses to start without it (there is no built-in fallback). |
+| `DEMO_HR_EMAIL`, `DEMO_HR_PASSWORD` | Demo HR account created/updated by `db:setup`, used by test scripts |
+| `CORS_ORIGIN` | Optional comma-separated allowed origins; empty allows all (auth uses Bearer tokens, not cookies) |
 
-### Technical Interviewer (Staff Portal)
-- **URL**: `http://127.0.0.1:5173/login`
-- **Email**: `interviewer@recruitflow.com`
-- **Password**: `Admin@123`
-
-### Candidate Portal
-- **Login URL**: `http://127.0.0.1:5173/candidate/login`
-- **Signup URL**: `http://127.0.0.1:5173/candidate/signup`
-- **Verified Demo Candidate**: `marcus.vance@example.com` / `Password@123`
+Frontend: `client/.env` → `VITE_API_URL` (default `http://localhost:5000/api`). Never put secrets in client env files; they are bundled into the browser.
 
 ---
 
-## 7. How to Run Locally
+## 7. Accounts for Local Demo
 
-### 1. Start the Backend API Server
+| Account | Email | Password | Source |
+| :--- | :--- | :--- | :--- |
+| HR Manager | `hr@recruitflow.com` | `Admin@123` | `seed.sql` / `DEMO_HR_*` |
+| Interviewer | `interviewer@recruitflow.com` | `Admin@123` | `seed.sql` |
+| Admin | `admin@recruitflow.com` | `Admin@123` | `seed.sql` |
+| Candidate | `marcus.vance@example.com` | `Password@123` | Exists in the current local database only (not in `seed.sql`) |
+
+On a fresh database, register a candidate at `/candidate/signup`. These are demo credentials for local use only.
+
+---
+
+## 8. Running Locally (Windows PowerShell)
+
 ```powershell
-cd server
+# 0. MySQL 8 must be running (service MySQL80)
+Get-Service MySQL80
+
+# 1. First time only: install deps and create schema + seed
+cd C:\Users\hp\Desktop\RecruitFlow\server
+npm.cmd install
+npm.cmd run db:setup
+
+# 2. Backend (http://localhost:5000)
 npm.cmd start
-```
-*Backend runs on `http://localhost:5000`.*
 
-### 2. Start the Frontend Application
-```powershell
-cd client
+# 3. Frontend, in a second terminal (http://127.0.0.1:5173)
+cd C:\Users\hp\Desktop\RecruitFlow\client
+npm.cmd install
 npm.cmd run dev
 ```
-*Frontend runs on `http://127.0.0.1:5173`.*
 
 ---
 
-## 8. Automated Test & Verification Commands
+## 9. Tests
 
-All phases are verified with automated test suites ensuring zero regressions:
+Run from `server/`. Except `testSkillMatch.js`, the suites need MySQL; `testApi`, `testSecurity` and `e2eWorkflow` start an in-process API if none is running, `testCandidateApi` needs the backend running. All suites delete the records they create.
 
-### Database Verification (20/20 Checks)
-```powershell
-cd server
-node scripts/verifyDatabase.js
-```
+| Command | Covers |
+| :--- | :--- |
+| `node scripts/verifyDatabase.js` | Schema, constraints, seed data (20 checks) |
+| `node scripts/testApi.js` | HR API workflow and negative cases |
+| `node scripts/testCandidateApi.js` | Candidate portal, IDOR, offer accept/decline, HR/candidate sync |
+| `node scripts/testSecurity.js` | Role separation, IDOR, input validation, concurrent duplicate requests, offer expiry, hiring rules, transaction rollback |
+| `node scripts/testSkillMatch.js` | Skill-matching logic |
+| `node scripts/e2eWorkflow.js` | Scenario A (hire) and Scenario B (declined offer) end to end, checking both portals and MySQL |
 
-### HR Backend API Regression Suite (24/24 Tests)
-```powershell
-cd server
-node scripts/testApi.js
-```
+Frontend build: `cd client; npm.cmd run build`.
 
-### Candidate Portal & Workflow Suite (36/36 Tests)
-```powershell
-cd server
-node scripts/testCandidateApi.js
-```
+---
 
-### Frontend Production Build
-```powershell
-cd client
-npm.cmd run build
-```
-*(Builds in ~1.4s with 0 errors and 0 warnings)*
+## 10. Known Limitations
+
+- No email verification: a candidate who signs up is linked to earlier guest applications made with the same email.
+- `candidates.email` has no UNIQUE index. Concurrent duplicate creation is prevented with a MySQL named lock; adding the index would need a migration (check existing data for duplicates first).
+- `candidates.experience` is `VARCHAR(50)`, so experience is a short value such as "4 years" (validated, returns 400 rather than failing).
+- No login rate limiting or account lockout.
+- Interview cancellation is not supported (no status for it in the schema); interviews can be rescheduled.
+- Offer expiry is evaluated against the server's local date.
+- Interview datetimes are stored without a timezone; server and browsers are assumed to share one.
+- Seed data contains application #2 in `SELECTED` with an expired `SENT` offer. It is left as-is; HR can reject it to close it out.
+- Optional LLM summary for skill matching is not implemented. It would need `@anthropic-ai/sdk`, an `ANTHROPIC_API_KEY`, per-request API cost, and sending job/candidate profile text to Anthropic.
