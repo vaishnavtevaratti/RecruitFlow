@@ -1,19 +1,27 @@
 /**
  * RecruitFlow — Database Setup Script
- * Sets up MySQL database, applies schema.sql, and seeds demo data.
- * Safe and idempotent.
+ * Sets up MySQL database, applies schema.sql and migrations, and seeds demo data (non-production).
+ * Safe and idempotent: tables are only created if missing and nothing is dropped.
+ *
+ * Production (NODE_ENV=production):
+ * - server/.env is NOT read; every setting must come from the environment, e.g.
+ *   node --env-file=.env.production scripts/setupDatabase.js
+ * - demo seed data (with its public demo passwords) is never imported,
+ * - the HR account is created only if its email does not exist yet; existing users are never changed.
  */
 
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const { runMigrations } = require('./migrate');
+const { sslOptions } = require('../src/config/ssl');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 
-// 1. Load environment variables from server/.env
-const envPath = path.resolve(__dirname, '..', '.env');
-dotenv.config({ path: envPath });
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// 1. Load server/.env for local use only; production must never fall back to development values
+if (!IS_PRODUCTION) dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 const {
     DB_HOST = '127.0.0.1',
@@ -31,10 +39,18 @@ function withoutDatabaseSwitch(sql) {
 }
 
 async function setupDatabase() {
-    if (process.env.NODE_ENV === 'production' && (!process.env.DEMO_HR_PASSWORD || DEMO_HR_PASSWORD === 'Admin@123')) {
-        console.error('[FAIL] In production set DEMO_HR_PASSWORD to a strong, non-default password before running setup.');
-        process.exitCode = 1;
-        return false;
+    if (IS_PRODUCTION) {
+        const missing = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DEMO_HR_EMAIL', 'DEMO_HR_PASSWORD'].filter((k) => !process.env[k]);
+        if (missing.length) {
+            console.error(`[FAIL] Production setup needs these settings: ${missing.join(', ')}`);
+            process.exitCode = 1;
+            return false;
+        }
+        if (DEMO_HR_PASSWORD === 'Admin@123' || DEMO_HR_PASSWORD.length < 12) {
+            console.error('[FAIL] In production DEMO_HR_PASSWORD must be a strong password (12+ characters, not the demo default).');
+            process.exitCode = 1;
+            return false;
+        }
     }
 
     console.log('--------------------------------------------------');
@@ -50,11 +66,14 @@ async function setupDatabase() {
             port: Number(DB_PORT),
             user: DB_USER,
             password: DB_PASSWORD,
-            ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+            ssl: sslOptions(),
+            timezone: 'Z',
             multipleStatements: true
         });
+        // Same UTC session as the API pool, so seed and migration times are written as UTC
+        await connection.query("SET time_zone = '+00:00'");
 
-        console.log('[PASS] Connected to MySQL server.');
+        console.log(`[PASS] Connected to MySQL server${sslOptions() ? ' over verified TLS' : ''}.`);
 
         // 2. Create database if not exists
         console.log(`Creating database '${DB_NAME}' if it does not exist...`);
@@ -85,8 +104,10 @@ async function setupDatabase() {
         // Bring older databases up to the current schema (idempotent)
         await runMigrations(connection, DB_NAME);
 
-        // 4. Apply seed.sql (demo data; set SEED_DEMO_DATA=false for production)
-        if (process.env.SEED_DEMO_DATA !== 'false') {
+        // 4. Apply seed.sql (demo data with public demo passwords — never in production)
+        if (IS_PRODUCTION) {
+            console.log('[INFO] Production: demo seed data skipped.');
+        } else if (process.env.SEED_DEMO_DATA !== 'false') {
         const seedPath = path.resolve(__dirname, '..', '..', 'database', 'seed.sql');
         console.log(`Reading seed data from: ${seedPath}`);
         if (!fs.existsSync(seedPath)) {
@@ -98,11 +119,21 @@ async function setupDatabase() {
         console.log('[PASS] Base seed data applied successfully.');
         }
 
-        // 5. Ensure configured Demo HR account matches server/.env credentials securely
-        console.log(`Ensuring demo HR account for email: ${DEMO_HR_EMAIL}...`);
+        // 5. HR account
+        console.log(`Ensuring HR account for email: ${DEMO_HR_EMAIL}...`);
         const salt = bcrypt.genSaltSync(10);
         const hashedPassword = bcrypt.hashSync(DEMO_HR_PASSWORD, salt);
 
+        if (IS_PRODUCTION) {
+            // Create only; never change an existing user's password or role
+            const [res] = await connection.query(
+                `INSERT INTO users (name, email, password, role)
+                 SELECT ?, ?, ?, 'HR' FROM DUAL
+                 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = ?)`,
+                ['HR Manager', DEMO_HR_EMAIL, hashedPassword, DEMO_HR_EMAIL]
+            );
+            console.log(res.affectedRows ? '[PASS] HR account created.' : '[INFO] A user with this email already exists; left unchanged.');
+        } else {
         await connection.query(
             `INSERT INTO users (name, email, password, role)
              VALUES (?, ?, ?, 'HR')
@@ -113,6 +144,7 @@ async function setupDatabase() {
             ['HR Manager', DEMO_HR_EMAIL, hashedPassword]
         );
         console.log('[PASS] Demo HR user account verified with secure bcrypt hash.');
+        }
 
         console.log('--------------------------------------------------');
         console.log('DATABASE SETUP COMPLETED SUCCESSFULLY');

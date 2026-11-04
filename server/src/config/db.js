@@ -6,6 +6,7 @@
 const mysql = require('mysql2/promise');
 const path = require('path');
 const dotenv = require('dotenv');
+const { sslOptions } = require('./ssl');
 
 // Ensure server/.env is loaded
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
@@ -25,7 +26,9 @@ const pool = mysql.createPool({
     user: DB_USER,
     password: DB_PASSWORD,
     database: DB_NAME,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    ssl: sslOptions(),
+    // Interview DATETIMEs are stored and read as UTC (session time zone is set below)
+    timezone: 'Z',
     // Return DATE columns as 'YYYY-MM-DD' strings so calendar dates (deadlines,
     // offer/joining/expiry dates) never shift across timezones when serialized.
     dateStrings: ['DATE'],
@@ -34,6 +37,11 @@ const pool = mysql.createPool({
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0
+});
+
+// Every pooled connection talks to MySQL in UTC, so TIMESTAMP/DATETIME values match timezone 'Z'
+pool.pool.on('connection', (conn) => {
+    conn.query("SET time_zone = '+00:00'");
 });
 
 /**

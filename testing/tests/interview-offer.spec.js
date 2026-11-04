@@ -28,7 +28,8 @@ test.describe('Interviews', () => {
     await expect(dialog).toBeHidden();
     await expect(page.getByText('Interview rescheduled.')).toBeVisible();
     const [[iv]] = await db.query('SELECT scheduled_at, result FROM interviews WHERE id = ?', [interviewId]);
-    expect(iv).toEqual({ scheduled_at: `${date(9)} 15:45:00`, result: 'PENDING' });
+    // 15:45 in Asia/Kolkata (UTC+05:30) is stored as 10:15 UTC
+    expect(iv).toEqual({ scheduled_at: `${date(9)} 10:15:00`, result: 'PENDING' });
   });
 
   test('cancel a pending interview returns the candidate to the shortlist', async ({ page, run, api, db }) => {
@@ -98,6 +99,35 @@ test.describe('Interviews', () => {
     expect((await api.put(`/interviews/${pending.interviewId}/evaluate`, { ...evaluation('PASS'), overall_rating: 11 }, { token: pending.hr })).status, 'rating 11').toBe(400);
     expect((await api.put(`/interviews/${pending.interviewId}/evaluate`, { ...evaluation('PASS'), result: 'MAYBE' }, { token: pending.hr })).status, 'bad result').toBe(400);
     expect((await api.put(`/interviews/${pending.interviewId}/evaluate`, evaluation('PASS'), { token: pending.cand.token })).status, 'candidate evaluates').toBe(403);
+  });
+});
+
+test.describe('Interview time zone', () => {
+  // A viewer in New York must still see the IST time HR entered
+  test.use({ timezoneId: 'America/New_York' });
+
+  test('times are stored in UTC and shown in Asia/Kolkata whatever the browser time zone', async ({ page, run, api, db }) => {
+    const { appId, cand } = await applicationAt(api, run, 'TimeZone', 'shortlist');
+    expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe('America/New_York');
+
+    await loginHR(page, run);
+    await page.goto(`/applications/${appId}`);
+    await scheduleInterviewUI(page, { when: dateTime(6, '11:00'), type: 'Time Zone Round' });
+    await expect(page.locator('.page-header .badge-rf').first()).toHaveText(/INTERVIEW SCHEDULED/i);
+
+    const [[iv]] = await db.query('SELECT scheduled_at FROM interviews WHERE application_id = ?', [appId]);
+    expect(iv.scheduled_at, '11:00 IST stored as 05:30 UTC').toBe(`${date(6)} 05:30:00`);
+    await expect(page.getByText(/11:00 AM GMT\+5:30/).first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Reschedule' }).click();
+    await expect(page.getByRole('dialog').getByLabel('Date & time')).toHaveValue(`${date(6)}T11:00`);
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+
+    await page.goto('/login');
+    await page.evaluate(() => localStorage.clear());
+    await loginCandidate(page, cand.email, run.candidatePassword);
+    await page.goto(`/candidate/applications/${appId}`);
+    await expect(page.getByText(/11:00 AM GMT\+5:30/).first()).toBeVisible();
   });
 });
 

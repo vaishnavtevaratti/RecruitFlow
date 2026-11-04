@@ -145,16 +145,18 @@ Rules enforced in the backend (`server/src/utils/workflow.js`, `recruitmentServi
 | Variable | Purpose |
 | :--- | :--- |
 | `PORT` | API port (default 5000) |
-| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL` | MySQL connection |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection |
+| `DB_SSL`, `DB_SSL_CA` | `DB_SSL=true` enables TLS with the server certificate **always verified**. `DB_SSL_CA` is the provider's CA certificate (path to a `.pem` file or the PEM text); without it Node's public CA list is used. There is no option to skip verification. |
+| `APP_TIMEZONE` | Business time zone (default `Asia/Kolkata`). Interview times are entered and displayed in it and stored in UTC; "today" for deadlines and offer expiry is this zone's date. |
 | `JWT_SECRET` | **Required.** The server refuses to start without it (there is no built-in fallback). |
 | `DEMO_HR_EMAIL`, `DEMO_HR_PASSWORD` | Demo HR account created/updated by `db:setup`, used by test scripts |
 | `CORS_ORIGIN` | Comma-separated allowed origins. Empty allows all (fine locally); **set it in production** (the server warns if it is empty with `NODE_ENV=production`) |
 | `NODE_ENV` | `production` on the server host |
 | `TRUST_PROXY` | Set to `1` behind a reverse proxy/PaaS (Render, Railway, Nginx) so rate limiting sees real client IPs |
 | `AUTH_RATE_LIMIT_MAX` | Failed auth attempts allowed per IP per 15 minutes (default 10) |
-| `SEED_DEMO_DATA` | `false` makes `db:setup` skip the demo seed data (use in production) |
+| `SEED_DEMO_DATA` | `false` makes `db:setup` skip the demo seed data locally. With `NODE_ENV=production` demo data is never imported. |
 
-Frontend: `client/.env` → `VITE_API_URL` (dev default `http://localhost:5000/api`; production builds fall back to same-origin `/api`, never localhost). `VITE_SHOW_DEMO_LOGIN=true` shows the demo-login buttons in a production build (they always show in `npm run dev`). Never put secrets in client env files; they are bundled into the browser.
+Frontend: `client/.env` → `VITE_API_URL` (dev default `http://localhost:5000/api`; production builds fall back to same-origin `/api`, never localhost). `VITE_APP_TIMEZONE` (default `Asia/Kolkata`) must match the server's `APP_TIMEZONE`. `VITE_SHOW_DEMO_LOGIN=true` shows the demo-login buttons in a production build (they always show in `npm run dev`). Never put secrets in client env files; they are bundled into the browser.
 
 ---
 
@@ -208,10 +210,15 @@ Any Node 18+ host for the API (Render, Railway, a VM), any static host for the c
    DEMO_HR_PASSWORD=<strong password; setup refuses the default in production>
    CORS_ORIGIN=https://<your-frontend-domain>
    TRUST_PROXY=1
-   SEED_DEMO_DATA=false
+   APP_TIMEZONE=Asia/Kolkata
+   DB_SSL_CA=<provider CA certificate (PEM text)>
    ```
    Generate a secret with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`.
-3. **Initialise the schema once** from a machine that can reach the database: `cd server && npm run db:setup` (creates tables, applies migrations, creates the HR account). For an existing database, `npm run db:migrate` applies only pending migrations; it is idempotent and the rollback SQL is in `server/scripts/migrate.js`.
+3. **Initialise the schema once** from a machine that can reach the database. Put the production values in `server/.env.production` (git-ignored; never commit it), then run from `server/`:
+   ```
+   node --env-file=.env.production scripts/setupDatabase.js
+   ```
+   With `NODE_ENV=production` the script reads **only** that file (never your development `server/.env`), refuses to run if a setting is missing or the HR password is weak, creates missing tables, applies migrations, **never imports demo data**, and creates the HR account only if that email does not exist yet (existing users are never changed). It never drops or truncates anything. For later schema updates run `node --env-file=.env.production scripts/migrate.js`; migrations are idempotent and their rollback SQL is in `server/scripts/migrate.js`.
 4. **Client host:** root directory `client`, build `npm run build`, output `dist`. Set `VITE_API_URL=https://<your-api-domain>/api` before building (Vite inlines it).
 5. **Check:** `GET https://<api>/api/health/db` returns `success: true`; sign in at `/login` with the HR account; register a candidate at `/candidate/signup`.
 
@@ -248,7 +255,7 @@ Frontend build: `cd client; npm.cmd run build`.
 - Cancelling an interview deletes the pending (unevaluated) interview row and returns the application to `SHORTLISTED`; evaluated interviews cannot be cancelled.
 - List pages fetch the full list and paginate in the browser; add server-side `LIMIT/OFFSET` if a table grows to thousands of rows.
 - Resume upload is not implemented; candidates can store a resume URL.
-- Offer expiry is evaluated against the server's local date.
-- Interview datetimes are stored without a timezone; server and browsers are assumed to share one.
+- Offer expiry and job deadlines are evaluated against today's date in `APP_TIMEZONE`.
+- Interview times are stored in UTC and always shown in `APP_TIMEZONE`, whatever the viewer's device time zone. Migration `003_interview_times_utc` converted older rows, which were stored as IST wall-clock time.
 - Seed data contains application #2 in `SELECTED` with an expired `SENT` offer. It is left as-is; HR can reject it to close it out.
 - Optional LLM summary for skill matching is not implemented. It would need `@anthropic-ai/sdk`, an `ANTHROPIC_API_KEY`, per-request API cost, and sending job/candidate profile text to Anthropic.

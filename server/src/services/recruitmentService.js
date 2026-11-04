@@ -12,7 +12,7 @@ const { pool } = require('../config/db');
 const workflow = require('../utils/workflow');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
-const { isValidDateOnly, isPastDate, normalizeDateTime, dateTimeToDate } = require('../utils/dates');
+const { isValidDateOnly, isPastDate, normalizeDateTime, dateTimeToDate, todayDateOnly } = require('../utils/dates');
 const { isValidEmail, isHttpUrl, badRequest, assertStringFields } = require('../middleware/validationMiddleware');
 
 function httpError(statusCode, message) {
@@ -26,7 +26,10 @@ function httpError(statusCode, message) {
  * date is reported as EXPIRED without rewriting the stored row.
  */
 function offerStatusSql(alias = 'o') {
-    return `CASE WHEN ${alias}.status = 'SENT' AND ${alias}.expiry_date < CURDATE() THEN 'EXPIRED' ELSE ${alias}.status END`;
+    // "Today" is the APP_TIMEZONE date, not the database server's CURDATE()
+    const today = todayDateOnly();
+    if (!isValidDateOnly(today)) throw new Error('Invalid server date');
+    return `CASE WHEN ${alias}.status = 'SENT' AND ${alias}.expiry_date < '${today}' THEN 'EXPIRED' ELSE ${alias}.status END`;
 }
 
 const STAFF_ROLES = ['HR', 'ADMIN', 'INTERVIEWER'];
@@ -202,7 +205,8 @@ class RecruitmentService {
 
         if (publicOnly) {
             // Candidates only see openings they can actually apply to
-            sql += ` AND j.status = 'PUBLISHED' AND j.deadline >= CURDATE()`;
+            sql += ` AND j.status = 'PUBLISHED' AND j.deadline >= ?`;
+            params.push(todayDateOnly());
         } else if (status) {
             sql += ` AND j.status = ?`;
             params.push(status);

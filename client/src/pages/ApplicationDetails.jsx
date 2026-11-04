@@ -24,7 +24,9 @@ import {
   getErrorMessage,
   splitSkills,
   dateInputValue,
-  dateTimeInputValue
+  dateTimeInputValue,
+  appWallTimeToDate,
+  APP_TIMEZONE
 } from '../utils/formatters';
 
 const STAGE_ORDER = ['APPLIED', 'SCREENING', 'SHORTLISTED', 'INTERVIEW_SCHEDULED', 'INTERVIEWED', 'SELECTED', 'OFFER_SENT', 'OFFER_ACCEPTED', 'HIRED'];
@@ -189,7 +191,7 @@ export default function ApplicationDetails() {
     if (!scheduleForm.interviewer_id) return 'Select an interviewer.';
     if (!scheduleForm.type.trim()) return 'Interview type is required.';
     if (!scheduleForm.scheduled_at) return 'Interview date and time are required.';
-    if (new Date(scheduleForm.scheduled_at) <= new Date()) return 'Interview must be scheduled in the future.';
+    if (appWallTimeToDate(scheduleForm.scheduled_at) <= new Date()) return 'Interview must be scheduled in the future.';
     return '';
   };
 
@@ -593,7 +595,8 @@ export default function ApplicationDetails() {
             </div>
             <div className="col-md-6">
               <label htmlFor="iv-when" className="form-label">Date & time</label>
-              <input id="iv-when" type="datetime-local" className="form-control" min={dateTimeInputValue(new Date())} value={scheduleForm.scheduled_at} onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_at: e.target.value })} required />
+              <input id="iv-when" type="datetime-local" className="form-control" min={dateTimeInputValue(new Date())} value={scheduleForm.scheduled_at} onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_at: e.target.value })} required aria-describedby="iv-when-tz" />
+              <div id="iv-when-tz" className="form-text">Time zone: {APP_TIMEZONE}</div>
             </div>
             <div className="col-md-6">
               <label htmlFor="iv-link" className="form-label">Meeting link <span className="text-muted fw-normal">(optional)</span></label>

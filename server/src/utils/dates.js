@@ -1,32 +1,72 @@
 /**
- * RecruitFlow — Calendar Date Helpers
- * DATE columns are handled as 'YYYY-MM-DD' strings (see config/db.js) and compared
- * lexicographically against the server's local calendar date, which avoids timezone drift.
+ * RecruitFlow — Date & Time Helpers
+ *
+ * Time zone strategy:
+ * - Calendar dates (deadlines, offer dates) are DATE columns handled as 'YYYY-MM-DD' strings
+ *   (see config/db.js). "Today" is the calendar date in APP_TIMEZONE, so deadlines and offer
+ *   expiry follow the business's day, not the server's or the database's.
+ * - Interview times are stored in UTC (DATETIME, session time zone +00:00, mysql2 timezone 'Z')
+ *   and returned to clients as ISO-8601 UTC instants. Clients display them in APP_TIMEZONE.
+ * - A date-time sent without an offset ('YYYY-MM-DDTHH:mm', what <input type="datetime-local">
+ *   produces) is wall-clock time in APP_TIMEZONE. A value with 'Z' or '+05:30' is used as given.
  */
 
+const APP_TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Kolkata';
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function pad(n) {
     return String(n).padStart(2, '0');
 }
 
-/**
- * Today's local calendar date as 'YYYY-MM-DD'.
- */
-function todayDateOnly() {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+// Throws early on an invalid APP_TIMEZONE instead of failing on the first request
+const dateTimeParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIMEZONE,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+});
+
+/** Wall-clock fields of an instant in APP_TIMEZONE. */
+function zonedParts(date) {
+    const p = Object.fromEntries(dateTimeParts.formatToParts(date).map((x) => [x.type, x.value]));
+    return { y: Number(p.year), mo: Number(p.month), d: Number(p.day), h: Number(p.hour), mi: Number(p.minute), s: Number(p.second) };
+}
+
+/** Milliseconds APP_TIMEZONE is ahead of UTC at the given instant. */
+function zoneOffsetMs(epochMs) {
+    const p = zonedParts(new Date(epochMs));
+    return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - Math.floor(epochMs / 1000) * 1000;
+}
+
+/** Instant of a wall-clock time in APP_TIMEZONE (second pass settles DST transitions). */
+function zonedWallTimeToDate(y, mo, d, h, mi, s) {
+    const wallAsUtc = Date.UTC(y, mo - 1, d, h, mi, s);
+    let epoch = wallAsUtc - zoneOffsetMs(wallAsUtc);
+    epoch = wallAsUtc - zoneOffsetMs(epoch);
+    return new Date(epoch);
 }
 
 /**
- * Normalizes a Date or 'YYYY-MM-DD...' string to 'YYYY-MM-DD' (local calendar date).
+ * Today's calendar date in APP_TIMEZONE as 'YYYY-MM-DD'.
+ */
+function todayDateOnly(now = new Date()) {
+    const p = zonedParts(now);
+    return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+}
+
+/**
+ * Normalizes a Date (calendar date in APP_TIMEZONE) or 'YYYY-MM-DD...' string to 'YYYY-MM-DD'.
  * Returns null for empty/invalid input.
  */
 function toDateOnly(value) {
     if (!value) return null;
     if (value instanceof Date) {
         if (isNaN(value.getTime())) return null;
-        return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+        return todayDateOnly(value);
     }
     const str = String(value).slice(0, 10);
     return isValidDateOnly(str) ? str : null;
@@ -40,12 +80,12 @@ function isValidDateOnly(value) {
     const m = DATE_ONLY_RE.exec(value);
     if (!m) return false;
     const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-    const date = new Date(y, mo - 1, d);
-    return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d;
+    const date = new Date(Date.UTC(y, mo - 1, d));
+    return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
 }
 
 /**
- * True when the calendar date has passed (strictly before today).
+ * True when the calendar date has passed (strictly before today in APP_TIMEZONE).
  */
 function isPastDate(value) {
     const d = toDateOnly(value);
@@ -53,29 +93,36 @@ function isPastDate(value) {
 }
 
 /**
- * Parses 'YYYY-MM-DDTHH:mm[:ss]' or 'YYYY-MM-DD HH:mm[:ss]' (local time).
- * Returns a normalized 'YYYY-MM-DD HH:mm:ss' string for MySQL DATETIME, or null if invalid.
+ * Parses 'YYYY-MM-DDTHH:mm[:ss]' (APP_TIMEZONE wall time) or the same with 'Z' / '±HH:MM'.
+ * Returns the UTC 'YYYY-MM-DD HH:mm:ss' string to store in a DATETIME column, or null if invalid.
  */
 function normalizeDateTime(value) {
     if (typeof value !== 'string') return null;
-    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})?$/.exec(value.trim());
     if (!m || !isValidDateOnly(m[1])) return null;
-    const [h, min, s] = [Number(m[2]), Number(m[3]), Number(m[4] || 0)];
-    if (h > 23 || min > 59 || s > 59) return null;
-    return `${m[1]} ${pad(h)}:${pad(min)}:${pad(s)}`;
+    const [y, mo, d] = m[1].split('-').map(Number);
+    const [h, mi, s] = [Number(m[2]), Number(m[3]), Number(m[4] || 0)];
+    if (h > 23 || mi > 59 || s > 59) return null;
+
+    let instant;
+    if (!m[5]) {
+        instant = zonedWallTimeToDate(y, mo, d, h, mi, s);
+    } else {
+        const offsetMin = m[5] === 'Z' ? 0 : (m[5][0] === '-' ? -1 : 1) * (Number(m[5].slice(1, 3)) * 60 + Number(m[5].slice(4)));
+        instant = new Date(Date.UTC(y, mo - 1, d, h, mi, s) - offsetMin * 60000);
+    }
+    return instant.toISOString().slice(0, 19).replace('T', ' ');
 }
 
 /**
- * Converts a normalized local DATETIME string to a JS Date.
+ * Converts a stored UTC DATETIME string ('YYYY-MM-DD HH:mm:ss') to a JS Date.
  */
-function dateTimeToDate(normalized) {
-    const [datePart, timePart] = normalized.split(' ');
-    const [y, mo, d] = datePart.split('-').map(Number);
-    const [h, mi, s] = timePart.split(':').map(Number);
-    return new Date(y, mo - 1, d, h, mi, s);
+function dateTimeToDate(utcDateTime) {
+    return new Date(`${utcDateTime.replace(' ', 'T')}Z`);
 }
 
 module.exports = {
+    APP_TIMEZONE,
     todayDateOnly,
     toDateOnly,
     isValidDateOnly,

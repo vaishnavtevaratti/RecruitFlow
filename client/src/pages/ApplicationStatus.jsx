@@ -10,7 +10,7 @@ import { candidatePortalService } from '../services/candidatePortalService';
 import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { formatDate } from '../utils/formatters';
+import { formatDate, formatDateTime } from '../utils/formatters';
 
 export default function ApplicationStatus() {
   const { isAuthenticated, isCandidate } = useAuth();
@@ -156,7 +156,7 @@ export default function ApplicationStatus() {
                   <i className="bi bi-calendar-event me-1 text-primary" aria-hidden="true"></i> Scheduled Interview:
                 </div>
                 <div className="small text-muted">
-                  {new Date(lookupResult.interviews[0].scheduled_at).toLocaleString()} • {lookupResult.interviews[0].type}
+                  {formatDateTime(lookupResult.interviews[0].scheduled_at)} • {lookupResult.interviews[0].type}
                 </div>
               </div>
             )}

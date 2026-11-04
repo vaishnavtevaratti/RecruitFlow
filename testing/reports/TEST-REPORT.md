@@ -1,13 +1,13 @@
 # RecruitFlow — Automated Test Report
 
-**Run date:** 4 Nov 2026 · **Command:** `cd testing && npm test` · **Browser:** Chromium 131 (Playwright 1.49.1)
+**Run date:** 5 Nov 2026 · **Command:** `cd testing && npm test` · **Browser:** Chromium 131 (Playwright 1.49.1)
 **Target:** local app on isolated MySQL database `recruitflow_e2e` (dev database `recruitflow` checked afterwards: 0 test records)
 
 ## Result
 
 | Total | Passed | Failed | Skipped | Pass rate | Duration |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 46 | 46 | 0 | 0 | 100% | 3.6 min |
+| 47 | 47 | 0 | 0 | 100% | 3.7 min |
 
 Browser problems across the whole run: **0** console errors, **0** uncaught exceptions, **0** API 5xx responses, **0** failed network requests. The per-run auto-generated details are in [`SUMMARY.md`](SUMMARY.md).
 
@@ -18,7 +18,7 @@ Browser problems across the whole run: **0** console errors, **0** uncaught exce
 | Dashboard | 5 | Every stat card equals a live MySQL count, widgets render, sidebar reaches every module, stat-card links filter lists, empty states |
 | Jobs | 5 | Create, list, details, edit (persisted), draft hidden, publish, search, filter, sort, close (applications blocked), reopen, delete with confirmation, form validation, write-API authorization |
 | Candidate portal | 1 (7 steps) | Two registrations, profile update persisted, invalid resume URL rejected, location/type/keyword filters, apply, dashboard/list show it, duplicate blocked (UI + API), candidate 1 cannot see candidate 2's application |
-| Interviews & offers | 8 | Reschedule, cancel, past/invalid dates, FAIL blocks selection and offers, invalid transitions (evaluate twice, reschedule/cancel evaluated, rating 11, candidate evaluating), offer form validation, offer details, decline (both portals + MySQL, hire blocked), duplicate/early offers, candidates cannot act on offers |
+| Interviews & offers | 9 | Reschedule, cancel, past/invalid dates, FAIL blocks selection and offers, invalid transitions (evaluate twice, reschedule/cancel evaluated, rating 11, candidate evaluating), interview times stored in UTC and shown in Asia/Kolkata to a browser set to New York time, offer form validation, offer details, decline (both portals + MySQL, hire blocked), duplicate/early offers, candidates cannot act on offers |
 | Negative | 6 | Duplicate/closed/draft/expired/missing-job applications, skipped or repeated pipeline steps, missing fields and invalid values (400), cross-candidate access, identity spoofing via request body, HR-only endpoints vs anonymous/candidate, no stack traces or SQL in errors |
 | Responsive | 4 | 18 screens at 1440/1280/768/375 px: no page overflow, no clipped controls, text ≥ 11 px, sidebar inline vs toggle, modal fits viewport; full-page screenshots saved |
 

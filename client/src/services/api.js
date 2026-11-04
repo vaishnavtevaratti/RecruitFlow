@@ -12,7 +12,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 15000
+  // Free hosting tiers can take ~30-60 s to wake an idle API
+  timeout: 60000
 });
 
 // Request interceptor: attach token from localStorage if present

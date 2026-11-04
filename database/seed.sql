@@ -67,17 +67,18 @@ ON DUPLICATE KEY UPDATE
 
 -- -----------------------------------------------------------------------------
 -- 5. Interviews (Strictly for shortlisted/interviewed/selected/hired candidates)
+-- scheduled_at is UTC (e.g. 08:30 UTC = 14:00 IST); the app displays it in Asia/Kolkata.
 -- -----------------------------------------------------------------------------
 INSERT INTO interviews (id, application_id, interviewer_id, scheduled_at, type, meeting_link, technical_rating, communication_rating, problem_solving_rating, overall_rating, feedback, result)
 VALUES
     -- Ethan Hunt (HIRED): completed and passed
-    (1, 1, 2, '2026-07-15 14:00:00', 'Technical Interview', 'https://meet.recruitflow.com/tech-ethan-hunt', 9, 9, 9, 9, 'Outstanding architecture knowledge and problem solving skills.', 'PASS'),
+    (1, 1, 2, '2026-07-15 08:30:00', 'Technical Interview', 'https://meet.recruitflow.com/tech-ethan-hunt', 9, 9, 9, 9, 'Outstanding architecture knowledge and problem solving skills.', 'PASS'),
     -- Alice Walker (SELECTED): completed and passed
-    (2, 2, 2, '2026-08-25 15:30:00', 'Technical Interview', 'https://meet.recruitflow.com/tech-alice-walker', 8, 9, 8, 8, 'Strong full-stack knowledge and great communication. Recommended for hire.', 'PASS'),
+    (2, 2, 2, '2026-08-25 10:00:00', 'Technical Interview', 'https://meet.recruitflow.com/tech-alice-walker', 8, 9, 8, 8, 'Strong full-stack knowledge and great communication. Recommended for hire.', 'PASS'),
     -- Charlie Davis (INTERVIEWED): completed and evaluated
-    (3, 3, 2, '2026-09-05 11:00:00', 'Technical Round 1', 'https://meet.recruitflow.com/tech-charlie-davis', 8, 7, 8, 8, 'Solid technical grasp, strong algorithmic thinking. Awaiting committee review.', 'PASS'),
+    (3, 3, 2, '2026-09-05 05:30:00', 'Technical Round 1', 'https://meet.recruitflow.com/tech-charlie-davis', 8, 7, 8, 8, 'Solid technical grasp, strong algorithmic thinking. Awaiting committee review.', 'PASS'),
     -- Bob Smith (INTERVIEW_SCHEDULED): upcoming interview, ratings NULL, result PENDING
-    (4, 4, 2, '2026-10-15 10:00:00', 'Technical Round 1', 'https://meet.recruitflow.com/tech-bob-smith', NULL, NULL, NULL, NULL, NULL, 'PENDING')
+    (4, 4, 2, '2026-10-15 04:30:00', 'Technical Round 1', 'https://meet.recruitflow.com/tech-bob-smith', NULL, NULL, NULL, NULL, NULL, 'PENDING')
 ON DUPLICATE KEY UPDATE 
     result = VALUES(result),
     overall_rating = VALUES(overall_rating);
