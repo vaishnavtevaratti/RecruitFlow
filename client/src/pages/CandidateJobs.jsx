@@ -88,7 +88,7 @@ export default function CandidateJobs() {
         <form onSubmit={handleSearch} className="row g-2 align-items-center">
           <div className="col-12 col-lg-4">
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-search"></i></span>
+              <span className="input-group-text"><i className="bi bi-search" aria-hidden="true"></i></span>
               <input type="search" className="form-control" placeholder="Search title, skills, or keywords" aria-label="Search jobs" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
@@ -127,10 +127,10 @@ export default function CandidateJobs() {
                     <span className="chip chip-primary">{job.department}</span>
                   </div>
                   <div className="d-flex flex-wrap gap-3 text-muted small mb-3">
-                    <span><i className="bi bi-geo-alt me-1"></i>{job.location}</span>
-                    <span><i className="bi bi-clock me-1"></i>{job.employment_type}</span>
-                    <span><i className="bi bi-briefcase me-1"></i>{job.experience_required}</span>
-                    <span className="text-success fw-medium"><i className="bi bi-cash-stack me-1"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
+                    <span><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{job.location}</span>
+                    <span><i className="bi bi-clock me-1" aria-hidden="true"></i>{job.employment_type}</span>
+                    <span><i className="bi bi-briefcase me-1" aria-hidden="true"></i>{job.experience_required}</span>
+                    <span className="text-success fw-medium"><i className="bi bi-cash-stack me-1" aria-hidden="true"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
                   </div>
                   <p className="text-secondary small mb-3 line-clamp-3">{job.description}</p>
                   <div className="d-flex flex-wrap gap-1 mb-3">
@@ -140,11 +140,11 @@ export default function CandidateJobs() {
                     <span className="text-muted small">Apply by {formatDate(job.deadline)}</span>
                     {applied ? (
                       <Link to={`/candidate/applications/${applied.id}`} className="btn btn-sm btn-light border">
-                        <i className="bi bi-check2 me-1 text-success"></i> Applied · View
+                        <i className="bi bi-check2 me-1 text-success" aria-hidden="true"></i> Applied · View
                       </Link>
                     ) : (
                       <Link to={`/candidate/jobs/${job.id}/apply`} className="btn btn-sm btn-primary">
-                        View & apply <i className="bi bi-arrow-right"></i>
+                        View & apply <i className="bi bi-arrow-right" aria-hidden="true"></i>
                       </Link>
                     )}
                   </div>

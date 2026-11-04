@@ -149,7 +149,7 @@ export default function JobForm() {
           </p>
         </div>
         <Link to={isEditMode ? `/jobs/${id}` : '/jobs'} className="btn btn-light border">
-          <i className="bi bi-arrow-left me-1"></i> Back
+          <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back
         </Link>
       </div>
 

@@ -64,7 +64,7 @@ export default function Interviews() {
         </div>
         {isHR && (
           <Link to="/applications?status=SHORTLISTED" className="btn btn-primary">
-            <i className="bi bi-calendar-plus me-1"></i> Schedule from shortlist
+            <i className="bi bi-calendar-plus me-1" aria-hidden="true"></i> Schedule from shortlist
           </Link>
         )}
       </div>

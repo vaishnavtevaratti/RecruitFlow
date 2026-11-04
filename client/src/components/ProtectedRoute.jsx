@@ -26,7 +26,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
       <div className="container py-5 text-center">
         <div className="card-rf p-5 d-inline-block" style={{ maxWidth: 480 }}>
           <div className="empty-state-icon bg-warning-subtle text-warning mx-auto mb-3">
-            <i className="bi bi-shield-lock-fill"></i>
+            <i className="bi bi-shield-lock-fill" aria-hidden="true"></i>
           </div>
           <h4 className="fw-bold">Access restricted</h4>
           <p className="text-muted mb-4">Your role ({user.role}) does not have permission to view this section.</p>

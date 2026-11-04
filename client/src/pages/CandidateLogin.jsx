@@ -54,7 +54,7 @@ export default function CandidateLogin() {
       <div className="auth-card" style={{ maxWidth: '440px' }}>
         <div className="text-center mb-4">
           <div className="auth-logo mx-auto mb-3">
-            <i className="bi bi-person-badge-fill"></i>
+            <i className="bi bi-person-badge-fill" aria-hidden="true"></i>
           </div>
           <h1 className="h3 fw-bold mb-1">Candidate Portal</h1>
           <p className="text-muted small mb-0">Sign in to apply, track applications, and review offers</p>
@@ -69,7 +69,7 @@ export default function CandidateLogin() {
           <div className="mb-3">
             <label htmlFor="cand-email" className="form-label">Email address</label>
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-envelope"></i></span>
+              <span className="input-group-text"><i className="bi bi-envelope" aria-hidden="true"></i></span>
               <input
                 id="cand-email"
                 type="email"
@@ -86,7 +86,7 @@ export default function CandidateLogin() {
           <div className="mb-4">
             <label htmlFor="cand-password" className="form-label">Password</label>
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-key"></i></span>
+              <span className="input-group-text"><i className="bi bi-key" aria-hidden="true"></i></span>
               <input
                 id="cand-password"
                 type="password"

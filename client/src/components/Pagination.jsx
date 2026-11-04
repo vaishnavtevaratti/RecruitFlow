@@ -23,11 +23,11 @@ export default function Pagination({ page, total, onChange, size = PAGE_SIZE }) 
       <span className="small text-muted">{from}–{to} of {total}</span>
       <div className="d-flex gap-1">
         <button type="button" className="btn btn-sm btn-light border" disabled={page <= 1} onClick={() => onChange(page - 1)} aria-label="Previous page">
-          <i className="bi bi-chevron-left"></i>
+          <i className="bi bi-chevron-left" aria-hidden="true"></i>
         </button>
         <span className="small align-self-center px-2">Page {page} of {pages}</span>
         <button type="button" className="btn btn-sm btn-light border" disabled={page >= pages} onClick={() => onChange(page + 1)} aria-label="Next page">
-          <i className="bi bi-chevron-right"></i>
+          <i className="bi bi-chevron-right" aria-hidden="true"></i>
         </button>
       </div>
     </nav>

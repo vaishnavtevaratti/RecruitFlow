@@ -62,7 +62,7 @@ export default function Login() {
       <div className="auth-card" style={{ maxWidth: '440px' }}>
         <div className="text-center mb-4">
           <div className="auth-logo mx-auto mb-3">
-            <i className="bi bi-diagram-3-fill"></i>
+            <i className="bi bi-diagram-3-fill" aria-hidden="true"></i>
           </div>
           <h1 className="h3 fw-bold mb-1">Welcome back</h1>
           <p className="text-muted small mb-0">Sign in to the RecruitFlow staff portal</p>
@@ -77,7 +77,7 @@ export default function Login() {
           <div className="mb-3">
             <label htmlFor="login-email" className="form-label">Email address</label>
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-envelope"></i></span>
+              <span className="input-group-text"><i className="bi bi-envelope" aria-hidden="true"></i></span>
               <input
                 id="login-email"
                 type="email"
@@ -94,7 +94,7 @@ export default function Login() {
           <div className="mb-4">
             <label htmlFor="login-password" className="form-label">Password</label>
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-lock"></i></span>
+              <span className="input-group-text"><i className="bi bi-lock" aria-hidden="true"></i></span>
               <input
                 id="login-password"
                 type="password"
@@ -125,10 +125,10 @@ export default function Login() {
           <small className="text-muted d-block mb-2 fw-semibold">Quick demo login</small>
           <div className="d-flex gap-2 justify-content-center flex-wrap">
             <button type="button" className="btn btn-sm btn-light border" onClick={() => handleFillDemo('hr@recruitflow.com', 'Admin@123')}>
-              <i className="bi bi-person-badge me-1"></i> HR Manager
+              <i className="bi bi-person-badge me-1" aria-hidden="true"></i> HR Manager
             </button>
             <button type="button" className="btn btn-sm btn-light border" onClick={() => handleFillDemo('interviewer@recruitflow.com', 'Admin@123')}>
-              <i className="bi bi-person-video3 me-1"></i> Interviewer
+              <i className="bi bi-person-video3 me-1" aria-hidden="true"></i> Interviewer
             </button>
           </div>
         </div>}
@@ -141,7 +141,7 @@ export default function Login() {
             <Link to="/candidate/signup" className="fw-semibold">Create account</Link>
           </p>
           <Link to="/jobs/public" className="text-secondary">
-            <i className="bi bi-arrow-left me-1"></i> Browse public career openings
+            <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Browse public career openings
           </Link>
         </div>
       </div>

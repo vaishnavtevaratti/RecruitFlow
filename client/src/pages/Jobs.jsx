@@ -132,7 +132,7 @@ export default function Jobs() {
           <p className="page-subtitle">Create requisitions, publish them to candidates, and close them when filled</p>
         </div>
         <Link to="/jobs/new" className="btn btn-primary">
-          <i className="bi bi-plus-lg me-1"></i> New Job Opening
+          <i className="bi bi-plus-lg me-1" aria-hidden="true"></i> New Job Opening
         </Link>
       </div>
 
@@ -142,7 +142,7 @@ export default function Jobs() {
         <form onSubmit={handleSearchSubmit} className="row g-2 align-items-center">
           <div className="col-12 col-xl-4">
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-search"></i></span>
+              <span className="input-group-text"><i className="bi bi-search" aria-hidden="true"></i></span>
               <input
                 type="search"
                 className="form-control"
@@ -220,7 +220,7 @@ export default function Jobs() {
                         <div className="small text-muted text-truncate" style={{ maxWidth: '280px' }}>{job.employment_type}</div>
                       </td>
                       <td><span className="chip">{job.department}</span></td>
-                      <td className="small text-secondary"><i className="bi bi-geo-alt me-1"></i>{job.location}</td>
+                      <td className="small text-secondary"><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{job.location}</td>
                       <td className="small">
                         <span className={deadlinePassed && job.status === 'PUBLISHED' ? 'text-danger fw-semibold' : 'text-secondary'}>
                           {formatDate(job.deadline)}
@@ -236,11 +236,11 @@ export default function Jobs() {
                       <td className="text-end">
                         <div className="d-inline-flex gap-1">
                           <Link to={`/jobs/${job.id}`} className="btn btn-sm btn-light border" title="View details" aria-label={`View ${job.title}`}>
-                            <i className="bi bi-eye"></i>
+                            <i className="bi bi-eye" aria-hidden="true"></i>
                           </Link>
                           {job.status !== 'CLOSED' && (
                             <Link to={`/jobs/${job.id}/edit`} className="btn btn-sm btn-light border" title="Edit" aria-label={`Edit ${job.title}`}>
-                              <i className="bi bi-pencil"></i>
+                              <i className="bi bi-pencil" aria-hidden="true"></i>
                             </Link>
                           )}
                           {job.status === 'DRAFT' && (
@@ -260,7 +260,7 @@ export default function Jobs() {
                           )}
                           {Number(job.application_count) === 0 && (
                             <button type="button" className="btn btn-sm btn-light border text-danger" title="Delete" aria-label={`Delete ${job.title}`} onClick={() => setPending({ job, action: 'delete' })}>
-                              <i className="bi bi-trash"></i>
+                              <i className="bi bi-trash" aria-hidden="true"></i>
                             </button>
                           )}
                         </div>

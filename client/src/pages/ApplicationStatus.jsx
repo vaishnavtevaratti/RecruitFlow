@@ -55,7 +55,7 @@ export default function ApplicationStatus() {
             to="/jobs/public"
             className="d-inline-flex align-items-center gap-2 text-decoration-none text-primary fw-semibold mb-2"
           >
-            <i className="bi bi-arrow-left"></i> Back to Careers
+            <i className="bi bi-arrow-left" aria-hidden="true"></i> Back to Careers
           </Link>
           <h2 className="fw-bold text-dark mb-1">Application Status Lookup</h2>
           <p className="text-muted small">
@@ -108,7 +108,7 @@ export default function ApplicationStatus() {
           {error && <div className="mt-3"><ErrorMessage message={error} /></div>}
 
           <div className="alert alert-info small mt-4 mb-0 rounded-3">
-            <i className="bi bi-person-badge me-2"></i>
+            <i className="bi bi-person-badge me-2" aria-hidden="true"></i>
             Have a registered candidate account?{' '}
             <Link to="/candidate/login" className="alert-link fw-bold">
               Sign In to Candidate Portal
@@ -153,7 +153,7 @@ export default function ApplicationStatus() {
             {lookupResult.interviews?.length > 0 && (
               <div className="mt-3 p-3 bg-light rounded-3">
                 <div className="fw-semibold small text-dark mb-1">
-                  <i className="bi bi-calendar-event me-1 text-primary"></i> Scheduled Interview:
+                  <i className="bi bi-calendar-event me-1 text-primary" aria-hidden="true"></i> Scheduled Interview:
                 </div>
                 <div className="small text-muted">
                   {new Date(lookupResult.interviews[0].scheduled_at).toLocaleString()} • {lookupResult.interviews[0].type}
@@ -164,7 +164,7 @@ export default function ApplicationStatus() {
             {lookupResult.offer && (
               <div className="mt-3 p-3 bg-success-subtle rounded-3 text-success">
                 <div className="fw-bold small mb-1">
-                  <i className="bi bi-award me-1"></i> Job Offer Status: {lookupResult.offer.status}
+                  <i className="bi bi-award me-1" aria-hidden="true"></i> Job Offer Status: {lookupResult.offer.status}
                 </div>
                 <div className="small">
                   Sign in to your candidate account to review terms and accept or decline.
@@ -177,7 +177,7 @@ export default function ApplicationStatus() {
                 Create Candidate Account
               </Link>
               <Link to="/candidate/login" className="btn btn-sm btn-primary">
-                Candidate Portal Sign In <i className="bi bi-arrow-right ms-1"></i>
+                Candidate Portal Sign In <i className="bi bi-arrow-right ms-1" aria-hidden="true"></i>
               </Link>
             </div>
           </div>

@@ -69,13 +69,13 @@ export default function Dashboard() {
         </div>
         <div className="d-flex gap-2">
           <button type="button" className="btn btn-light border" onClick={fetchStats} aria-label="Refresh metrics">
-            <i className="bi bi-arrow-clockwise"></i>
+            <i className="bi bi-arrow-clockwise" aria-hidden="true"></i>
           </button>
           <Link to="/applications" className="btn btn-outline-primary">
-            <i className="bi bi-kanban me-1"></i> View Pipeline
+            <i className="bi bi-kanban me-1" aria-hidden="true"></i> View Pipeline
           </Link>
           <Link to="/jobs/new" className="btn btn-primary">
-            <i className="bi bi-plus-lg me-1"></i> Create Job
+            <i className="bi bi-plus-lg me-1" aria-hidden="true"></i> Create Job
           </Link>
         </div>
       </div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
           <div key={sc.label} className="col-12 col-sm-6 col-xl-3">
             <Link to={sc.to} className="stat-card h-100 text-decoration-none">
               <div className={`stat-icon-wrapper tone-${sc.tone}`}>
-                <i className={`bi ${sc.icon}`}></i>
+                <i className={`bi ${sc.icon}`} aria-hidden="true"></i>
               </div>
               <div className="min-w-0">
                 <div className="stat-label">{sc.label}</div>
@@ -143,7 +143,7 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 text-end">
               <Link to="/interviews" className="btn btn-sm btn-outline-primary">
-                Manage interviews <i className="bi bi-arrow-right"></i>
+                Manage interviews <i className="bi bi-arrow-right" aria-hidden="true"></i>
               </Link>
             </div>
           </div>
@@ -180,7 +180,7 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 text-end">
               <Link to="/offers" className="btn btn-sm btn-outline-primary">
-                Manage offers <i className="bi bi-arrow-right"></i>
+                Manage offers <i className="bi bi-arrow-right" aria-hidden="true"></i>
               </Link>
             </div>
           </div>

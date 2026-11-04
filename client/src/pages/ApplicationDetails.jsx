@@ -295,7 +295,7 @@ export default function ApplicationDetails() {
           </div>
         </div>
         <Link to={isHR ? '/applications' : '/interviews'} className="btn btn-light border">
-          <i className="bi bi-arrow-left me-1"></i> Back
+          <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back
         </Link>
       </div>
 
@@ -305,7 +305,7 @@ export default function ApplicationDetails() {
       <div className="card-rf p-4 mb-4">
         {app.status === 'REJECTED' ? (
           <div className="d-flex align-items-center gap-3 text-danger">
-            <i className="bi bi-x-octagon-fill fs-3"></i>
+            <i className="bi bi-x-octagon-fill fs-3" aria-hidden="true"></i>
             <div>
               <div className="fw-semibold">Application rejected</div>
               <div className="small text-muted">This is a terminal state; the application cannot progress further.</div>
@@ -317,7 +317,7 @@ export default function ApplicationDetails() {
               const state = stageState(stage, app.status);
               return (
                 <li key={stage.label} className={`stepper-item ${state}`} aria-current={state === 'current' ? 'step' : undefined}>
-                  <div className="stepper-circle">{state === 'completed' ? <i className="bi bi-check-lg"></i> : idx + 1}</div>
+                  <div className="stepper-circle">{state === 'completed' ? <i className="bi bi-check-lg" aria-hidden="true"></i> : idx + 1}</div>
                   <div className="stepper-title">{stage.label}</div>
                 </li>
               );
@@ -359,7 +359,7 @@ export default function ApplicationDetails() {
               {app.resume_url && /^https?:\/\//i.test(app.resume_url) && (
                 <div className="col-12">
                   <a href={app.resume_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
-                    <i className="bi bi-file-earmark-text me-1"></i> View resume / portfolio
+                    <i className="bi bi-file-earmark-text me-1" aria-hidden="true"></i> View resume / portfolio
                   </a>
                 </div>
               )}
@@ -373,7 +373,7 @@ export default function ApplicationDetails() {
               <h2 className="section-title mb-0">Interviews</h2>
               {isHR && app.status === 'SHORTLISTED' && (
                 <button type="button" className="btn btn-sm btn-primary" onClick={() => openModal('schedule')}>
-                  <i className="bi bi-calendar-plus me-1"></i> Schedule
+                  <i className="bi bi-calendar-plus me-1" aria-hidden="true"></i> Schedule
                 </button>
               )}
             </div>
@@ -388,11 +388,11 @@ export default function ApplicationDetails() {
                       <div>
                         <div className="fw-semibold">{iv.type}</div>
                         <div className="small text-muted">
-                          <i className="bi bi-clock me-1"></i>{formatDateTime(iv.scheduled_at)} · {iv.interviewer_name}
+                          <i className="bi bi-clock me-1" aria-hidden="true"></i>{formatDateTime(iv.scheduled_at)} · {iv.interviewer_name}
                         </div>
                         {iv.meeting_link && /^https?:\/\//i.test(iv.meeting_link) && (
                           <a href={iv.meeting_link} target="_blank" rel="noopener noreferrer" className="small">
-                            <i className="bi bi-camera-video me-1"></i>Meeting link
+                            <i className="bi bi-camera-video me-1" aria-hidden="true"></i>Meeting link
                           </a>
                         )}
                       </div>
@@ -421,17 +421,17 @@ export default function ApplicationDetails() {
                         <div className="border-top pt-3 mt-3 d-flex justify-content-end gap-2">
                           {isHR && (
                             <button type="button" className="btn btn-sm btn-light border text-danger" onClick={() => { setSelectedInterview(iv); setConfirmAction('cancelInterview'); }}>
-                              <i className="bi bi-x-circle me-1"></i> Cancel
+                              <i className="bi bi-x-circle me-1" aria-hidden="true"></i> Cancel
                             </button>
                           )}
                           {isHR && (
                             <button type="button" className="btn btn-sm btn-light border" onClick={() => openModal('reschedule', iv)}>
-                              <i className="bi bi-calendar2-week me-1"></i> Reschedule
+                              <i className="bi bi-calendar2-week me-1" aria-hidden="true"></i> Reschedule
                             </button>
                           )}
                           {(isHR || iv.interviewer_id === user?.id) && (
                             <button type="button" className="btn btn-sm btn-primary" onClick={() => openModal('evaluate', iv)}>
-                              <i className="bi bi-pencil-square me-1"></i> Record evaluation
+                              <i className="bi bi-pencil-square me-1" aria-hidden="true"></i> Record evaluation
                             </button>
                           )}
                         </div>
@@ -480,11 +480,11 @@ export default function ApplicationDetails() {
                 )}
               </div>
               <div className="border-top pt-3 mt-3 small">
-                {offer.status === 'SENT' && <span className="text-muted"><i className="bi bi-hourglass-split me-1"></i>Waiting for the candidate to accept or decline in their portal.</span>}
-                {offer.status === 'EXPIRED' && <span className="text-danger"><i className="bi bi-hourglass-bottom me-1"></i>The candidate did not respond before the expiry date. You can reject the application to close it out.</span>}
-                {offer.status === 'ACCEPTED' && app.status === 'OFFER_ACCEPTED' && <span className="text-success fw-semibold"><i className="bi bi-check-circle-fill me-1"></i>Accepted by the candidate. Confirm the hire to complete the workflow.</span>}
-                {offer.status === 'ACCEPTED' && app.status === 'HIRED' && <span className="text-success fw-semibold"><i className="bi bi-trophy-fill me-1"></i>Accepted and hired.</span>}
-                {offer.status === 'REJECTED' && <span className="text-danger"><i className="bi bi-x-circle-fill me-1"></i>Declined by the candidate. The application is closed.</span>}
+                {offer.status === 'SENT' && <span className="text-muted"><i className="bi bi-hourglass-split me-1" aria-hidden="true"></i>Waiting for the candidate to accept or decline in their portal.</span>}
+                {offer.status === 'EXPIRED' && <span className="text-danger"><i className="bi bi-hourglass-bottom me-1" aria-hidden="true"></i>The candidate did not respond before the expiry date. You can reject the application to close it out.</span>}
+                {offer.status === 'ACCEPTED' && app.status === 'OFFER_ACCEPTED' && <span className="text-success fw-semibold"><i className="bi bi-check-circle-fill me-1" aria-hidden="true"></i>Accepted by the candidate. Confirm the hire to complete the workflow.</span>}
+                {offer.status === 'ACCEPTED' && app.status === 'HIRED' && <span className="text-success fw-semibold"><i className="bi bi-trophy-fill me-1" aria-hidden="true"></i>Accepted and hired.</span>}
+                {offer.status === 'REJECTED' && <span className="text-danger"><i className="bi bi-x-circle-fill me-1" aria-hidden="true"></i>Declined by the candidate. The application is closed.</span>}
               </div>
             </div>
           )}
@@ -496,27 +496,27 @@ export default function ApplicationDetails() {
             <div className="d-grid gap-2">
               {isHR && app.status === 'APPLIED' && (
                 <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => runAction(() => applicationService.screenApplication(id), 'Moved to screening.')}>
-                  <i className="bi bi-search me-1"></i> Start screening
+                  <i className="bi bi-search me-1" aria-hidden="true"></i> Start screening
                 </button>
               )}
               {isHR && app.status === 'SCREENING' && (
                 <button type="button" className="btn btn-success" disabled={submitting} onClick={() => runAction(() => applicationService.shortlistApplication(id), 'Candidate shortlisted. Schedule an interview next.')}>
-                  <i className="bi bi-star me-1"></i> Shortlist candidate
+                  <i className="bi bi-star me-1" aria-hidden="true"></i> Shortlist candidate
                 </button>
               )}
               {isHR && app.status === 'SHORTLISTED' && (
                 <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('schedule')}>
-                  <i className="bi bi-calendar-plus me-1"></i> Schedule interview
+                  <i className="bi bi-calendar-plus me-1" aria-hidden="true"></i> Schedule interview
                 </button>
               )}
               {canEvaluate && (
                 <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('evaluate', pendingInterview)}>
-                  <i className="bi bi-pencil-square me-1"></i> Record interview evaluation
+                  <i className="bi bi-pencil-square me-1" aria-hidden="true"></i> Record interview evaluation
                 </button>
               )}
               {isHR && app.status === 'INTERVIEWED' && latestInterview?.result === 'PASS' && (
                 <button type="button" className="btn btn-success" disabled={submitting} onClick={() => setConfirmAction('select')}>
-                  <i className="bi bi-award me-1"></i> Select for hire
+                  <i className="bi bi-award me-1" aria-hidden="true"></i> Select for hire
                 </button>
               )}
               {isHR && app.status === 'INTERVIEWED' && latestInterview?.result === 'FAIL' && (
@@ -524,27 +524,27 @@ export default function ApplicationDetails() {
               )}
               {isHR && app.status === 'SELECTED' && (
                 <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => openModal('offer')}>
-                  <i className="bi bi-envelope-paper me-1"></i> Create & send offer
+                  <i className="bi bi-envelope-paper me-1" aria-hidden="true"></i> Create & send offer
                 </button>
               )}
               {app.status === 'OFFER_SENT' && !offerExpired && (
                 <div className="state-callout">
-                  <i className="bi bi-envelope-paper me-1"></i> Offer sent — awaiting the candidate's response.
+                  <i className="bi bi-envelope-paper me-1" aria-hidden="true"></i> Offer sent — awaiting the candidate's response.
                 </div>
               )}
               {app.status === 'OFFER_SENT' && offerExpired && (
                 <div className="state-callout state-callout-warning">
-                  <i className="bi bi-hourglass-bottom me-1"></i> Offer expired without a response.
+                  <i className="bi bi-hourglass-bottom me-1" aria-hidden="true"></i> Offer expired without a response.
                 </div>
               )}
               {isHR && app.status === 'OFFER_ACCEPTED' && (
                 <button type="button" className="btn btn-success" disabled={submitting} onClick={() => setConfirmAction('hire')}>
-                  <i className="bi bi-person-check me-1"></i> Mark as hired
+                  <i className="bi bi-person-check me-1" aria-hidden="true"></i> Mark as hired
                 </button>
               )}
               {app.status === 'HIRED' && (
                 <div className="state-callout state-callout-success">
-                  <i className="bi bi-trophy-fill me-1"></i> Hired — recruitment complete.
+                  <i className="bi bi-trophy-fill me-1" aria-hidden="true"></i> Hired — recruitment complete.
                 </div>
               )}
               {app.status === 'REJECTED' && <div className="state-callout state-callout-danger">No further actions available.</div>}
@@ -554,7 +554,7 @@ export default function ApplicationDetails() {
 
               {canReject && (
                 <button type="button" className="btn btn-outline-danger mt-2" disabled={submitting} onClick={() => setConfirmAction('reject')}>
-                  <i className="bi bi-x-octagon me-1"></i> Reject application
+                  <i className="bi bi-x-octagon me-1" aria-hidden="true"></i> Reject application
                 </button>
               )}
             </div>
@@ -636,9 +636,9 @@ export default function ApplicationDetails() {
             <legend className="form-label">Recommendation</legend>
             <div className="d-flex gap-2">
               <input type="radio" className="btn-check" name="ev-result" id="ev-pass" checked={evaluateForm.result === 'PASS'} onChange={() => setEvaluateForm({ ...evaluateForm, result: 'PASS' })} />
-              <label className="btn btn-outline-success flex-fill" htmlFor="ev-pass"><i className="bi bi-check-lg me-1"></i>Pass</label>
+              <label className="btn btn-outline-success flex-fill" htmlFor="ev-pass"><i className="bi bi-check-lg me-1" aria-hidden="true"></i>Pass</label>
               <input type="radio" className="btn-check" name="ev-result" id="ev-fail" checked={evaluateForm.result === 'FAIL'} onChange={() => setEvaluateForm({ ...evaluateForm, result: 'FAIL' })} />
-              <label className="btn btn-outline-danger flex-fill" htmlFor="ev-fail"><i className="bi bi-x-lg me-1"></i>Fail</label>
+              <label className="btn btn-outline-danger flex-fill" htmlFor="ev-fail"><i className="bi bi-x-lg me-1" aria-hidden="true"></i>Fail</label>
             </div>
           </fieldset>
           <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">

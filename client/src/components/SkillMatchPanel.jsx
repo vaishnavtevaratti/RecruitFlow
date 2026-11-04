@@ -39,7 +39,7 @@ export default function SkillMatchPanel({ applicationId }) {
           <button type="button" className="btn btn-sm btn-light border" onClick={() => setHidden(true)}>Hide</button>
         ) : (
           <button type="button" className="btn btn-sm btn-outline-primary" onClick={analyse} disabled={loading}>
-            {loading ? <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> : <i className="bi bi-bar-chart me-1"></i>}
+            {loading ? <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> : <i className="bi bi-bar-chart me-1" aria-hidden="true"></i>}
             Analyse skills
           </button>
         )}
@@ -63,7 +63,7 @@ export default function SkillMatchPanel({ applicationId }) {
               <ul className="list-unstyled small mb-0">
                 {result.matched.map((m) => (
                   <li key={m.skill} className="mb-1">
-                    <i className="bi bi-check-circle-fill text-success me-1"></i>
+                    <i className="bi bi-check-circle-fill text-success me-1" aria-hidden="true"></i>
                     <strong>{m.skill}</strong> <span className="text-muted">— {m.detail}</span>
                   </li>
                 ))}
@@ -75,7 +75,7 @@ export default function SkillMatchPanel({ applicationId }) {
               <ul className="list-unstyled small mb-0">
                 {result.notMentioned.map((m) => (
                   <li key={m.skill} className="mb-1">
-                    <i className="bi bi-question-circle text-warning me-1"></i>
+                    <i className="bi bi-question-circle text-warning me-1" aria-hidden="true"></i>
                     <strong>{m.skill}</strong> <span className="text-muted">— not mentioned (may still have it)</span>
                   </li>
                 ))}

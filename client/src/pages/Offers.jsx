@@ -53,7 +53,7 @@ export default function Offers() {
           <p className="page-subtitle">Track offers, candidate responses, and hires awaiting confirmation</p>
         </div>
         <Link to="/applications?status=SELECTED" className="btn btn-primary">
-          <i className="bi bi-envelope-paper me-1"></i> Offer to selected candidate
+          <i className="bi bi-envelope-paper me-1" aria-hidden="true"></i> Offer to selected candidate
         </Link>
       </div>
 

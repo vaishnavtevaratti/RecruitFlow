@@ -18,7 +18,7 @@ export default function Navbar({ onToggleSidebar }) {
           onClick={onToggleSidebar}
           aria-label="Toggle navigation"
         >
-          <i className="bi bi-list fs-5"></i>
+          <i className="bi bi-list fs-5" aria-hidden="true"></i>
         </button>
         <span className="navbar-context d-none d-sm-inline">
           {isCandidate ? 'Candidate Portal' : 'Recruitment Management'}
@@ -28,13 +28,13 @@ export default function Navbar({ onToggleSidebar }) {
       <div className="d-flex align-items-center gap-3">
         {isHR && (
           <Link to="/jobs/new" className="btn btn-sm btn-primary d-none d-md-inline-flex align-items-center gap-1">
-            <i className="bi bi-plus-lg"></i>
+            <i className="bi bi-plus-lg" aria-hidden="true"></i>
             <span>New Job</span>
           </Link>
         )}
         {isCandidate && (
           <Link to="/candidate/jobs" className="btn btn-sm btn-outline-primary d-none d-md-inline-flex align-items-center gap-1">
-            <i className="bi bi-search"></i>
+            <i className="bi bi-search" aria-hidden="true"></i>
             <span>Find Jobs</span>
           </Link>
         )}

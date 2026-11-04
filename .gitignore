@@ -22,3 +22,12 @@ yarn-error.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Playwright E2E
+testing/reports/html/
+testing/reports/artifacts/
+testing/reports/results.json
+testing/.auth/
+testing/.env.e2e
+testing/reports/screenshots/
+!testing/.env.e2e.example

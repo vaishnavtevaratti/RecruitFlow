@@ -160,7 +160,7 @@ export default function ApplyJob() {
     return (
       <PageShell inPortal={inPortal}>
         <ErrorMessage message={loadError || 'Job not found.'} />
-        <Link to={backLink} className="btn btn-light border"><i className="bi bi-arrow-left me-1"></i> Back to jobs</Link>
+        <Link to={backLink} className="btn btn-light border"><i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back to jobs</Link>
       </PageShell>
     );
   }
@@ -169,7 +169,7 @@ export default function ApplyJob() {
     return (
       <PageShell inPortal={inPortal}>
         <div className="card-rf p-4 p-md-5 text-center">
-          <div className="success-icon mx-auto mb-3"><i className="bi bi-check-lg"></i></div>
+          <div className="success-icon mx-auto mb-3"><i className="bi bi-check-lg" aria-hidden="true"></i></div>
           <h1 className="h3 fw-bold mb-2">Application submitted</h1>
           <p className="text-muted mb-4">
             Your application for <strong>{job.title}</strong> was received and is now with the hiring team.
@@ -210,7 +210,7 @@ export default function ApplyJob() {
   return (
     <PageShell inPortal={inPortal}>
       <Link to={backLink} className="small text-secondary d-inline-block mb-3">
-        <i className="bi bi-arrow-left me-1"></i> Back to jobs
+        <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back to jobs
       </Link>
 
       <div className="card-rf p-4 mb-4">
@@ -219,10 +219,10 @@ export default function ApplyJob() {
             <span className="chip chip-primary mb-2">{job.department}</span>
             <h1 className="h3 fw-bold mb-1">{job.title}</h1>
             <div className="text-muted small d-flex flex-wrap gap-3">
-              <span><i className="bi bi-geo-alt me-1"></i>{job.location}</span>
-              <span><i className="bi bi-clock me-1"></i>{job.employment_type}</span>
-              <span><i className="bi bi-briefcase me-1"></i>{job.experience_required}</span>
-              <span><i className="bi bi-cash-stack me-1"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
+              <span><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{job.location}</span>
+              <span><i className="bi bi-clock me-1" aria-hidden="true"></i>{job.employment_type}</span>
+              <span><i className="bi bi-briefcase me-1" aria-hidden="true"></i>{job.experience_required}</span>
+              <span><i className="bi bi-cash-stack me-1" aria-hidden="true"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
             </div>
           </div>
           <div className="small text-muted">Apply by <strong>{formatDate(job.deadline)}</strong></div>
@@ -235,13 +235,13 @@ export default function ApplyJob() {
 
       {closed ? (
         <div className="card-rf p-5 text-center">
-          <i className="bi bi-lock fs-1 text-secondary d-block mb-2"></i>
+          <i className="bi bi-lock fs-1 text-secondary d-block mb-2" aria-hidden="true"></i>
           <h2 className="h5 fw-semibold">This job is no longer accepting applications</h2>
           <Link to={backLink} className="btn btn-outline-primary btn-sm mt-2">Explore other roles</Link>
         </div>
       ) : alreadyApplied ? (
         <div className="card-rf p-5 text-center">
-          <i className="bi bi-check2-circle fs-1 text-success d-block mb-2"></i>
+          <i className="bi bi-check2-circle fs-1 text-success d-block mb-2" aria-hidden="true"></i>
           <h2 className="h5 fw-semibold">You have already applied to this job</h2>
           <Link to={`/candidate/applications/${alreadyApplied.id}`} className="btn btn-primary btn-sm mt-2">View application status</Link>
         </div>

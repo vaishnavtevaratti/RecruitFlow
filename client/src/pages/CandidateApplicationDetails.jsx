@@ -77,7 +77,7 @@ export default function CandidateApplicationDetails() {
       <div className="py-4">
         <ErrorMessage message={error || 'Application not found.'} />
         <Link to="/candidate/applications" className="btn btn-light border">
-          <i className="bi bi-arrow-left me-1"></i> Back to my applications
+          <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back to my applications
         </Link>
       </div>
     );
@@ -92,7 +92,7 @@ export default function CandidateApplicationDetails() {
       <div className="page-header">
         <div>
           <Link to="/candidate/applications" className="small text-secondary d-inline-block mb-2">
-            <i className="bi bi-arrow-left me-1"></i> My applications
+            <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> My applications
           </Link>
           <div className="d-flex align-items-center gap-2 flex-wrap">
             <h1 className="page-title mb-0">{job.title}</h1>
@@ -109,7 +109,7 @@ export default function CandidateApplicationDetails() {
 
       {status === 'HIRED' && (
         <div className="banner banner-success mb-4">
-          <i className="bi bi-trophy-fill fs-3"></i>
+          <i className="bi bi-trophy-fill fs-3" aria-hidden="true"></i>
           <div>
             <div className="fw-semibold">Congratulations — you're hired!</div>
             <div className="small">The hiring team confirmed your onboarding for {job.title}.</div>
@@ -118,7 +118,7 @@ export default function CandidateApplicationDetails() {
       )}
       {status === 'OFFER_ACCEPTED' && (
         <div className="banner banner-info mb-4">
-          <i className="bi bi-check2-circle fs-3"></i>
+          <i className="bi bi-check2-circle fs-3" aria-hidden="true"></i>
           <div>
             <div className="fw-semibold">You accepted the offer</div>
             <div className="small">The hiring team will confirm your onboarding. This page updates once they do.</div>
@@ -127,7 +127,7 @@ export default function CandidateApplicationDetails() {
       )}
       {status === 'REJECTED' && (
         <div className="banner banner-muted mb-4">
-          <i className="bi bi-info-circle fs-3"></i>
+          <i className="bi bi-info-circle fs-3" aria-hidden="true"></i>
           <div>
             <div className="fw-semibold">This application is closed</div>
             <div className="small">
@@ -147,7 +147,7 @@ export default function CandidateApplicationDetails() {
           <ol className="timeline-v">
             {timeline.map((item) => (
               <li key={item.stage} className={`timeline-v-item ${item.state}`} aria-current={item.state === 'current' ? 'step' : undefined}>
-                <span className="timeline-v-dot">{item.state === 'completed' ? <i className="bi bi-check"></i> : null}</span>
+                <span className="timeline-v-dot">{item.state === 'completed' ? <i className="bi bi-check" aria-hidden="true"></i> : null}</span>
                 <span className="timeline-v-label">{STAGE_LABELS[item.stage] || item.label}</span>
                 {item.state === 'current' && <span className="chip chip-primary ms-2">Current</span>}
               </li>
@@ -166,7 +166,7 @@ export default function CandidateApplicationDetails() {
               <>
                 {canRespond && (
                   <div className="alert alert-primary small d-flex gap-2 align-items-start">
-                    <i className="bi bi-bell-fill mt-1"></i>
+                    <i className="bi bi-bell-fill mt-1" aria-hidden="true"></i>
                     <div>You have an offer. Please respond by <strong>{formatDate(offer.expiry_date)}</strong>.</div>
                   </div>
                 )}
@@ -210,7 +210,7 @@ export default function CandidateApplicationDetails() {
                 {canRespond && (
                   <div className="d-flex gap-2 mt-4 pt-3 border-top flex-wrap">
                     <button type="button" className="btn btn-success" disabled={actionLoading} onClick={() => setConfirm('accept')}>
-                      <i className="bi bi-check2-circle me-1"></i> Accept offer
+                      <i className="bi bi-check2-circle me-1" aria-hidden="true"></i> Accept offer
                     </button>
                     <button type="button" className="btn btn-outline-danger" disabled={actionLoading} onClick={() => setConfirm('decline')}>
                       Decline
@@ -251,11 +251,11 @@ export default function CandidateApplicationDetails() {
                       <span className="fw-semibold">{iv.type}</span>
                       <StatusBadge status={iv.result} audience="candidate" />
                     </div>
-                    <div className="small"><i className="bi bi-calendar3 me-1 text-primary"></i>{formatDateTime(iv.scheduled_at)}</div>
-                    {iv.interviewer_name && <div className="small text-muted"><i className="bi bi-person me-1"></i>{iv.interviewer_name}</div>}
+                    <div className="small"><i className="bi bi-calendar3 me-1 text-primary" aria-hidden="true"></i>{formatDateTime(iv.scheduled_at)}</div>
+                    {iv.interviewer_name && <div className="small text-muted"><i className="bi bi-person me-1" aria-hidden="true"></i>{iv.interviewer_name}</div>}
                     {iv.meeting_link && /^https?:\/\//i.test(iv.meeting_link) && iv.result === 'PENDING' && (
                       <a href={iv.meeting_link} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary mt-2">
-                        <i className="bi bi-camera-video me-1"></i> Join meeting
+                        <i className="bi bi-camera-video me-1" aria-hidden="true"></i> Join meeting
                       </a>
                     )}
                     {iv.result !== 'PENDING' && (

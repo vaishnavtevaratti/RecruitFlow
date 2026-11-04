@@ -128,7 +128,7 @@ export default function Applications() {
         <form onSubmit={handleSearchSubmit} className="row g-2 align-items-center">
           <div className="col-12 col-md-6">
             <div className="input-group">
-              <span className="input-group-text"><i className="bi bi-search"></i></span>
+              <span className="input-group-text"><i className="bi bi-search" aria-hidden="true"></i></span>
               <input
                 type="search"
                 className="form-control"
@@ -203,7 +203,7 @@ export default function Applications() {
                           </button>
                         )}
                         <Link to={`/applications/${app.id}`} className="btn btn-sm btn-primary">
-                          Open <i className="bi bi-arrow-right"></i>
+                          Open <i className="bi bi-arrow-right" aria-hidden="true"></i>
                         </Link>
                       </div>
                     </td>

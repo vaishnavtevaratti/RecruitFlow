@@ -54,7 +54,7 @@ export default function CandidateApplications() {
           <p className="page-subtitle">Every application you have submitted and its current stage</p>
         </div>
         <Link to="/candidate/jobs" className="btn btn-primary">
-          <i className="bi bi-search me-1"></i> Find more jobs
+          <i className="bi bi-search me-1" aria-hidden="true"></i> Find more jobs
         </Link>
       </div>
 
@@ -98,15 +98,15 @@ export default function CandidateApplications() {
                       <div className="fw-semibold">{app.job_title}</div>
                       <div className="small text-muted">{app.job_department} · {app.job_employment_type}</div>
                       {app.offer_status === 'SENT' && app.status === 'OFFER_SENT' && (
-                        <span className="chip chip-primary mt-1"><i className="bi bi-bell-fill me-1"></i>Offer awaiting your response</span>
+                        <span className="chip chip-primary mt-1"><i className="bi bi-bell-fill me-1" aria-hidden="true"></i>Offer awaiting your response</span>
                       )}
                     </td>
-                    <td className="small text-muted"><i className="bi bi-geo-alt me-1"></i>{app.job_location}</td>
+                    <td className="small text-muted"><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{app.job_location}</td>
                     <td className="small text-muted">{formatDate(app.applied_at)}</td>
                     <td><StatusBadge status={app.status} audience="candidate" /></td>
                     <td className="text-end">
                       <Link to={`/candidate/applications/${app.id}`} className="btn btn-sm btn-primary">
-                        Details <i className="bi bi-arrow-right"></i>
+                        Details <i className="bi bi-arrow-right" aria-hidden="true"></i>
                       </Link>
                     </td>
                   </tr>

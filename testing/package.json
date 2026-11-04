@@ -1,0 +1,21 @@
+{
+  "name": "recruitflow-e2e",
+  "private": true,
+  "description": "Playwright end-to-end tests for RecruitFlow, run against an isolated local MySQL database",
+  "scripts": {
+    "test": "playwright test",
+    "test:auth": "playwright test tests/auth.spec.js",
+    "test:dashboard": "playwright test tests/dashboard.spec.js",
+    "test:jobs": "playwright test tests/jobs.spec.js",
+    "test:candidate": "playwright test tests/candidate.spec.js",
+    "test:workflow": "playwright test tests/workflow.spec.js",
+    "test:interview-offer": "playwright test tests/interview-offer.spec.js",
+    "test:negative": "playwright test tests/negative.spec.js",
+    "test:responsive": "playwright test --project=responsive",
+    "report": "playwright show-report reports/html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "mysql2": "^3.12.0"
+  }
+}

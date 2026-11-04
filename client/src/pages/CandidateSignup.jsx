@@ -71,7 +71,7 @@ export default function CandidateSignup() {
     <div className="auth-shell">
       <div className="auth-card" style={{ maxWidth: '640px' }}>
         <div className="text-center mb-4">
-          <div className="auth-logo mx-auto mb-3"><i className="bi bi-person-plus-fill"></i></div>
+          <div className="auth-logo mx-auto mb-3"><i className="bi bi-person-plus-fill" aria-hidden="true"></i></div>
           <h1 className="h3 fw-bold mb-1">Create your candidate account</h1>
           <p className="text-muted small mb-0">Apply to jobs, follow your progress, and respond to offers in one place</p>
         </div>

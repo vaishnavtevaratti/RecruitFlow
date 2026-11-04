@@ -50,16 +50,16 @@ export default function PublicJobs() {
         <div className="container">
           <Link to="/jobs/public" className="navbar-brand fw-bold d-flex align-items-center gap-2">
             <span className="badge bg-primary p-2 rounded-3">
-              <i className="bi bi-diagram-3-fill"></i>
+              <i className="bi bi-diagram-3-fill" aria-hidden="true"></i>
             </span>
             <span>RecruitFlow Careers</span>
           </Link>
           <div className="d-flex align-items-center gap-2">
             <Link to="/application-status" className="btn btn-outline-light btn-sm">
-              <i className="bi bi-search me-1"></i> Check Status
+              <i className="bi bi-search me-1" aria-hidden="true"></i> Check Status
             </Link>
             <Link to="/candidate/login" className="btn btn-primary btn-sm">
-              <i className="bi bi-person me-1"></i> Candidate Sign In
+              <i className="bi bi-person me-1" aria-hidden="true"></i> Candidate Sign In
             </Link>
             <Link to="/login" className="btn btn-outline-light btn-sm d-none d-sm-inline-block">
               Staff
@@ -107,7 +107,7 @@ export default function PublicJobs() {
           <Loading message="Loading current career openings..." />
         ) : jobs.length === 0 ? (
           <div className="card-rf p-5 text-center text-muted">
-            <i className="bi bi-briefcase fs-1 text-secondary mb-2 d-block"></i>
+            <i className="bi bi-briefcase fs-1 text-secondary mb-2 d-block" aria-hidden="true"></i>
             <h5>No open positions matching your search</h5>
             <p className="small mb-0">Please check back soon for new requisitions.</p>
           </div>
@@ -123,9 +123,9 @@ export default function PublicJobs() {
                     </div>
 
                     <div className="d-flex flex-wrap gap-3 text-muted small mb-3">
-                      <span><i className="bi bi-geo-alt me-1"></i>{job.location}</span>
-                      <span><i className="bi bi-clock me-1"></i>{job.employment_type}</span>
-                      <span><i className="bi bi-cash-stack me-1"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
+                      <span><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{job.location}</span>
+                      <span><i className="bi bi-clock me-1" aria-hidden="true"></i>{job.employment_type}</span>
+                      <span><i className="bi bi-cash-stack me-1" aria-hidden="true"></i>{formatSalaryRange(job.salary_min, job.salary_max)}</span>
                     </div>
 
                     <p className="text-secondary small mb-3" style={{ lineHeight: '1.6' }}>
@@ -144,7 +144,7 @@ export default function PublicJobs() {
                       Deadline: <span className="fw-semibold text-danger">{formatDate(job.deadline)}</span>
                     </small>
                     <Link to={`/jobs/${job.id}/apply`} className="btn btn-primary btn-sm px-3 fw-semibold">
-                      Apply Now <i className="bi bi-arrow-right ms-1"></i>
+                      Apply Now <i className="bi bi-arrow-right ms-1" aria-hidden="true"></i>
                     </Link>
                   </div>
                 </div>

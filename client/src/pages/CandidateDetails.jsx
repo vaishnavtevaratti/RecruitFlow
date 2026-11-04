@@ -45,7 +45,7 @@ export default function CandidateDetails() {
           <p className="page-subtitle">Candidate Profile #{candidate.id} &bull; Registered on {formatDate(candidate.created_at)}</p>
         </div>
         <Link to="/candidates" className="btn btn-outline-secondary">
-          <i className="bi bi-arrow-left me-1"></i> Back to Candidates
+          <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back to Candidates
         </Link>
       </div>
 
@@ -83,7 +83,7 @@ export default function CandidateDetails() {
                 rel="noopener noreferrer"
                 className="btn btn-outline-primary btn-sm w-100 mt-3"
               >
-                <i className="bi bi-file-earmark-pdf me-1"></i> View Resume
+                <i className="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i> View Resume
               </a>
             )}
           </div>
@@ -104,7 +104,7 @@ export default function CandidateDetails() {
               View this candidate's applications and progression across all job requisitions:
             </p>
             <Link to={`/applications?search=${encodeURIComponent(candidate.email)}`} className="btn btn-outline-primary">
-              <i className="bi bi-folder2-open me-1"></i> View Candidate's Applications
+              <i className="bi bi-folder2-open me-1" aria-hidden="true"></i> View Candidate's Applications
             </Link>
           </div>
         </div>

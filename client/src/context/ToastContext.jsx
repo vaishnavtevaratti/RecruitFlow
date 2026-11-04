@@ -33,7 +33,7 @@ export function ToastProvider({ children }) {
       <div className="toast-stack" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`toast-rf toast-${t.type}`} role={t.type === 'danger' ? 'alert' : 'status'}>
-            <i className={`bi ${ICONS[t.type]}`}></i>
+            <i className={`bi ${ICONS[t.type]}`} aria-hidden="true"></i>
             <div className="flex-grow-1">{t.message}</div>
             <button type="button" className="btn-close btn-close-sm" aria-label="Dismiss" onClick={() => dismiss(t.id)}></button>
           </div>

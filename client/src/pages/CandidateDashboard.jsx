@@ -57,7 +57,7 @@ export default function CandidateDashboard() {
           <p className="page-subtitle">Here is where your applications stand</p>
         </div>
         <Link to="/candidate/jobs" className="btn btn-primary">
-          <i className="bi bi-search me-1"></i> Find jobs
+          <i className="bi bi-search me-1" aria-hidden="true"></i> Find jobs
         </Link>
       </div>
 
@@ -65,7 +65,7 @@ export default function CandidateDashboard() {
         {cards.map((c) => (
           <div key={c.label} className="col-6 col-md-4 col-xl">
             <div className="stat-card h-100">
-              <div className={`stat-icon-wrapper tone-${c.tone}`}><i className={`bi ${c.icon}`}></i></div>
+              <div className={`stat-icon-wrapper tone-${c.tone}`}><i className={`bi ${c.icon}`} aria-hidden="true"></i></div>
               <div>
                 <div className="stat-label">{c.label}</div>
                 <div className="stat-value">{c.val}</div>
@@ -78,7 +78,7 @@ export default function CandidateDashboard() {
       <div className="card-rf overflow-hidden">
         <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
           <h2 className="section-title mb-0">Recent applications</h2>
-          <Link to="/candidate/applications" className="small">View all <i className="bi bi-arrow-right"></i></Link>
+          <Link to="/candidate/applications" className="small">View all <i className="bi bi-arrow-right" aria-hidden="true"></i></Link>
         </div>
         {!stats?.recentApplications || stats.recentApplications.length === 0 ? (
           <div className="p-4">
@@ -108,7 +108,7 @@ export default function CandidateDashboard() {
                       <div className="fw-semibold">{app.job_title}</div>
                       <div className="small text-muted">{app.job_department}</div>
                     </td>
-                    <td className="small text-muted"><i className="bi bi-geo-alt me-1"></i>{app.job_location}</td>
+                    <td className="small text-muted"><i className="bi bi-geo-alt me-1" aria-hidden="true"></i>{app.job_location}</td>
                     <td className="small text-muted">{formatDate(app.applied_at)}</td>
                     <td><StatusBadge status={app.status} audience="candidate" /></td>
                     <td className="text-end">

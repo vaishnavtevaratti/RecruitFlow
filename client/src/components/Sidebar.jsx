@@ -45,7 +45,7 @@ export default function Sidebar({ isOpen, onClose }) {
       <aside className={`app-sidebar ${isOpen ? 'show' : ''}`} aria-label="Main navigation">
         <NavLink to={homePathForRole(role)} className="sidebar-brand" onClick={onClose}>
           <div className="brand-icon">
-            <i className="bi bi-diagram-3-fill"></i>
+            <i className="bi bi-diagram-3-fill" aria-hidden="true"></i>
           </div>
           <span>RecruitFlow</span>
         </NavLink>

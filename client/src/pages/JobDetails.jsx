@@ -78,26 +78,26 @@ export default function JobDetails() {
         </div>
         <div className="d-flex gap-2 flex-wrap">
           <Link to="/jobs" className="btn btn-light border">
-            <i className="bi bi-arrow-left me-1"></i> Back
+            <i className="bi bi-arrow-left me-1" aria-hidden="true"></i> Back
           </Link>
           {job.status !== 'CLOSED' && (
             <Link to={`/jobs/${job.id}/edit`} className="btn btn-outline-primary">
-              <i className="bi bi-pencil me-1"></i> Edit
+              <i className="bi bi-pencil me-1" aria-hidden="true"></i> Edit
             </Link>
           )}
           {job.status === 'DRAFT' && (
             <button type="button" onClick={() => setPendingAction('publish')} className="btn btn-success">
-              <i className="bi bi-megaphone me-1"></i> Publish
+              <i className="bi bi-megaphone me-1" aria-hidden="true"></i> Publish
             </button>
           )}
           {job.status === 'PUBLISHED' && (
             <button type="button" onClick={() => setPendingAction('close')} className="btn btn-outline-danger">
-              <i className="bi bi-lock me-1"></i> Close
+              <i className="bi bi-lock me-1" aria-hidden="true"></i> Close
             </button>
           )}
           {job.status === 'CLOSED' && (
             <button type="button" onClick={() => setPendingAction('reopen')} className="btn btn-outline-primary">
-              <i className="bi bi-unlock me-1"></i> Reopen
+              <i className="bi bi-unlock me-1" aria-hidden="true"></i> Reopen
             </button>
           )}
         </div>
@@ -135,19 +135,19 @@ export default function JobDetails() {
           <div className="card-rf p-4">
             <h2 className="section-title">Details</h2>
             <dl className="detail-list">
-              <dt><i className="bi bi-geo-alt"></i> Location</dt>
+              <dt><i className="bi bi-geo-alt" aria-hidden="true"></i> Location</dt>
               <dd>{job.location}</dd>
-              <dt><i className="bi bi-clock"></i> Type</dt>
+              <dt><i className="bi bi-clock" aria-hidden="true"></i> Type</dt>
               <dd>{job.employment_type}</dd>
-              <dt><i className="bi bi-briefcase"></i> Experience</dt>
+              <dt><i className="bi bi-briefcase" aria-hidden="true"></i> Experience</dt>
               <dd>{job.experience_required}</dd>
-              <dt><i className="bi bi-cash-stack"></i> Salary</dt>
+              <dt><i className="bi bi-cash-stack" aria-hidden="true"></i> Salary</dt>
               <dd>{formatSalaryRange(job.salary_min, job.salary_max)}</dd>
-              <dt><i className="bi bi-calendar-x"></i> Deadline</dt>
+              <dt><i className="bi bi-calendar-x" aria-hidden="true"></i> Deadline</dt>
               <dd className={deadlinePassed ? 'text-danger' : ''}>{formatDate(job.deadline)}</dd>
             </dl>
             <Link to={`/applications?job_id=${job.id}`} className="btn btn-primary w-100 mt-2">
-              <i className="bi bi-people me-1"></i> View applicants
+              <i className="bi bi-people me-1" aria-hidden="true"></i> View applicants
             </Link>
           </div>
         </div>

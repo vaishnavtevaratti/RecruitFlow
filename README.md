@@ -235,6 +235,8 @@ Run from `server/`. Except `testSkillMatch.js`, the suites need MySQL. Each suit
 
 Frontend build: `cd client; npm.cmd run build`.
 
+**Browser end-to-end tests (Playwright):** `cd testing && npm install && npx playwright install chromium && npm test` drives the real UI against an isolated `recruitflow_e2e` database (46 tests: full recruitment workflow, auth, jobs, candidate portal, interviews/offers, negative rules, responsive layouts). See [testing/README.md](testing/README.md) and [testing/reports/TEST-REPORT.md](testing/reports/TEST-REPORT.md).
+
 ---
 
 ## 11. Known Limitations

@@ -62,11 +62,12 @@ export default function Candidates() {
           <div className="col-12 col-md-10">
             <div className="input-group">
               <span className="input-group-text bg-white border-end-0 text-muted">
-                <i className="bi bi-search"></i>
+                <i className="bi bi-search" aria-hidden="true"></i>
               </span>
               <input
-                type="text"
+                type="search"
                 className="form-control border-start-0"
+                aria-label="Search candidates"
                 placeholder="Search candidates by name, email, or core skills..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -110,8 +111,8 @@ export default function Candidates() {
                       </Link>
                     </td>
                     <td>
-                      <div><i className="bi bi-envelope me-1 text-muted"></i>{c.email}</div>
-                      <small className="text-muted"><i className="bi bi-telephone me-1"></i>{c.phone}</small>
+                      <div><i className="bi bi-envelope me-1 text-muted" aria-hidden="true"></i>{c.email}</div>
+                      <small className="text-muted"><i className="bi bi-telephone me-1" aria-hidden="true"></i>{c.phone}</small>
                     </td>
                     <td>
                       <small>{c.education}</small>
@@ -130,7 +131,7 @@ export default function Candidates() {
                     </td>
                     <td className="text-end">
                       <Link to={`/candidates/${c.id}`} className="btn btn-sm btn-outline-secondary">
-                        <i className="bi bi-eye me-1"></i> View Profile
+                        <i className="bi bi-eye me-1" aria-hidden="true"></i> View Profile
                       </Link>
                     </td>
                   </tr>
