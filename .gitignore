@@ -31,3 +31,7 @@ testing/.auth/
 testing/.env.e2e
 testing/reports/screenshots/
 !testing/.env.e2e.example
+
+# Local-only files
+*.docx
+.claude/
