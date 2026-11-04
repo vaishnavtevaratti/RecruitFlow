@@ -23,6 +23,10 @@ async function startServer() {
         process.exit(1);
     }
 
+    if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+        console.warn('[WARNING] CORS_ORIGIN is not set; the API accepts requests from any origin.');
+    }
+
     // Test database connection before opening port
     const dbConnected = await checkDatabaseConnection();
     if (!dbConnected) {

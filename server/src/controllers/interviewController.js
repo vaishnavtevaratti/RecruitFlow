@@ -143,7 +143,21 @@ async function evaluateInterview(req, res, next) {
     }
 }
 
+/**
+ * PATCH /api/interviews/:id/cancel
+ * Cancels a pending interview; the application returns to SHORTLISTED (HR/Admin only).
+ */
+async function cancelInterview(req, res, next) {
+    try {
+        const application = await recruitmentService.cancelInterview(Number(req.params.id));
+        res.status(200).json({ success: true, message: 'Interview cancelled. The candidate is back on the shortlist.', data: application });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
+    cancelInterview,
     scheduleInterview,
     getInterviewers,
     getInterviews,

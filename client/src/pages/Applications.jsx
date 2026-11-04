@@ -10,6 +10,7 @@ import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
+import Pagination, { paginate } from '../components/Pagination';
 import Notice from '../components/Notice';
 import { formatDate, getErrorMessage } from '../utils/formatters';
 
@@ -29,6 +30,7 @@ const STAGES = [
 export default function Applications() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [applications, setApplications] = useState([]);
+  const [page, setPage] = useState(1);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -56,6 +58,7 @@ export default function Applications() {
       if (jobFilter) params.job_id = jobFilter;
       const res = await applicationService.getApplications(params);
       setApplications(res.data || []);
+      setPage(1);
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to fetch applications.'));
     } finally {
@@ -168,7 +171,7 @@ export default function Applications() {
                 </tr>
               </thead>
               <tbody>
-                {applications.map((app) => (
+                {paginate(applications, page).map((app) => (
                   <tr key={app.id}>
                     <td>
                       <div className="d-flex align-items-center gap-2">
@@ -209,6 +212,7 @@ export default function Applications() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} total={applications.length} onChange={setPage} />
         </div>
       )}
     </div>

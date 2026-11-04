@@ -12,12 +12,14 @@ const recruitmentService = require('../services/recruitmentService');
 async function getJobs(req, res, next) {
     try {
         const isStaff = req.user && ['HR', 'ADMIN', 'INTERVIEWER'].includes(req.user.role);
-        const { status, search, department } = req.query;
+        const { status, search, department, location, employment_type } = req.query;
 
         const jobs = await recruitmentService.getJobs({
             status: isStaff ? status : 'PUBLISHED',
             search,
             department,
+            location,
+            employment_type,
             publicOnly: !isStaff
         });
 
@@ -166,7 +168,35 @@ async function closeJob(req, res, next) {
     }
 }
 
+/**
+ * PATCH /api/jobs/:id/reopen
+ * Reopens a CLOSED job for applications (HR/Admin only).
+ */
+async function reopenJob(req, res, next) {
+    try {
+        const job = await recruitmentService.reopenJob(Number(req.params.id));
+        res.status(200).json({ success: true, message: 'Job opening reopened and accepting applications again.', data: job });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * DELETE /api/jobs/:id
+ * Deletes a job that has no applications (HR/Admin only).
+ */
+async function deleteJob(req, res, next) {
+    try {
+        await recruitmentService.deleteJob(Number(req.params.id));
+        res.status(200).json({ success: true, message: 'Job opening deleted.' });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
+    reopenJob,
+    deleteJob,
     getJobs,
     getJobById,
     createJob,

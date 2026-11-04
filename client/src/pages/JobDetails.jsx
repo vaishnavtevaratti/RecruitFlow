@@ -45,15 +45,10 @@ export default function JobDetails() {
     try {
       setBusy(true);
       setActionError('');
-      if (pendingAction === 'publish') {
-        const res = await jobService.publishJob(id);
-        setJob(res.data);
-        setFeedback('Job published. Candidates can now apply.');
-      } else {
-        const res = await jobService.closeJob(id);
-        setJob(res.data);
-        setFeedback('Job closed. New applications are blocked.');
-      }
+      const run = { publish: jobService.publishJob, close: jobService.closeJob, reopen: jobService.reopenJob }[pendingAction];
+      const res = await run(id);
+      setJob(res.data);
+      setFeedback(res.message);
     } catch (err) {
       setFeedback('');
       setActionError(getErrorMessage(err, 'Action failed.'));
@@ -98,6 +93,11 @@ export default function JobDetails() {
           {job.status === 'PUBLISHED' && (
             <button type="button" onClick={() => setPendingAction('close')} className="btn btn-outline-danger">
               <i className="bi bi-lock me-1"></i> Close
+            </button>
+          )}
+          {job.status === 'CLOSED' && (
+            <button type="button" onClick={() => setPendingAction('reopen')} className="btn btn-outline-primary">
+              <i className="bi bi-unlock me-1"></i> Reopen
             </button>
           )}
         </div>
@@ -155,14 +155,14 @@ export default function JobDetails() {
 
       <ConfirmDialog
         isOpen={Boolean(pendingAction)}
-        title={pendingAction === 'publish' ? 'Publish job opening?' : 'Close job opening?'}
-        message={
-          pendingAction === 'publish'
-            ? 'Candidates will be able to see and apply to this job until its deadline.'
-            : 'The job will stop accepting applications. Closed jobs cannot be republished or edited.'
-        }
-        confirmLabel={pendingAction === 'publish' ? 'Publish' : 'Close job'}
-        variant={pendingAction === 'publish' ? 'success' : 'danger'}
+        title={{ publish: 'Publish job opening?', close: 'Close job opening?', reopen: 'Reopen job opening?' }[pendingAction]}
+        message={{
+          publish: 'Candidates will be able to see and apply to this job until its deadline.',
+          close: 'The job will stop accepting applications and cannot be edited while closed. You can reopen it before the deadline.',
+          reopen: 'The job will be published again and accept applications until its deadline.'
+        }[pendingAction]}
+        confirmLabel={{ publish: 'Publish', close: 'Close job', reopen: 'Reopen' }[pendingAction]}
+        variant={pendingAction === 'close' ? 'danger' : 'success'}
         busy={busy}
         onConfirm={runAction}
         onCancel={() => setPendingAction(null)}

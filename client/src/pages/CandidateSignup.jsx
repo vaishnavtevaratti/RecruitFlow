@@ -12,7 +12,7 @@ function validate(form) {
   const errors = {};
   if (!form.name.trim()) errors.name = 'Full name is required.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address.';
-  if (form.password.length < 6) errors.password = 'Use at least 6 characters.';
+  if (form.password.length < 8) errors.password = 'Use at least 8 characters.';
   else if (form.password.length > 72) errors.password = 'Use at most 72 characters.';
   if (form.confirmPassword !== form.password) errors.confirmPassword = 'Passwords do not match.';
   if (form.phone.trim() && !/^[0-9+()\-.\s]{5,50}$/.test(form.phone.trim())) errors.phone = 'Use digits, spaces, and + ( ) - . only.';
@@ -93,7 +93,7 @@ export default function CandidateSignup() {
             <div className="col-md-6">
               <label htmlFor="su-password" className="form-label">Password <span className="text-danger">*</span></label>
               <input id="su-password" type="password" name="password" className={fieldClass('password')} value={formData.password} onChange={handleChange} autoComplete="new-password" />
-              {fieldError('password') || <div className="form-text">At least 6 characters.</div>}
+              {fieldError('password') || <div className="form-text">At least 8 characters.</div>}
             </div>
             <div className="col-md-6">
               <label htmlFor="su-confirm" className="form-label">Confirm password <span className="text-danger">*</span></label>

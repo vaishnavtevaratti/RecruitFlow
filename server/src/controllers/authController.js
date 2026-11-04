@@ -37,23 +37,19 @@ async function login(req, res, next) {
             });
         }
 
-        let candidateData = null;
-        let candidateId = null;
-
+        // Staff portal only; candidates authenticate through /api/auth/candidate/login
         if (user.role === 'CANDIDATE') {
-            const candidate = await recruitmentService.findCandidateByUserId(user.id);
-            if (candidate) {
-                candidateId = candidate.id;
-                candidateData = candidate;
-            }
+            return res.status(403).json({
+                success: false,
+                message: 'Candidate accounts must sign in through the candidate portal.'
+            });
         }
 
         const token = generateToken({
             id: user.id,
             email: user.email,
             role: user.role,
-            name: user.name,
-            candidate_id: candidateId
+            name: user.name
         });
 
         res.status(200).json({
@@ -65,8 +61,7 @@ async function login(req, res, next) {
                 name: user.name,
                 email: user.email,
                 role: user.role
-            },
-            ...(candidateData ? { candidate: candidateData } : {})
+            }
         });
     } catch (err) {
         next(err);
@@ -88,10 +83,10 @@ async function candidateSignup(req, res, next) {
             });
         }
 
-        if (password.length < 6) {
+        if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
             return res.status(400).json({
                 success: false,
-                message: 'Password must be at least 6 characters long.'
+                message: 'Password must be between 8 and 128 characters long.'
             });
         }
 

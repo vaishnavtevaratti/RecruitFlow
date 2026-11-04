@@ -512,6 +512,45 @@ body.modal-open-rf { overflow: hidden; }
 .login-wrapper { min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 2.5rem 1rem; }
 .login-card { width: 100%; background: var(--rf-surface); border: 1px solid var(--rf-border); border-radius: var(--rf-radius-lg); }
 
+/* ---------- Skeleton loading ---------- */
+.skeleton {
+  background: linear-gradient(90deg, #eef0f4 25%, #f6f7fa 50%, #eef0f4 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  border-radius: 6px;
+}
+.skeleton-title { height: 18px; width: 30%; }
+.skeleton-line { height: 10px; }
+.skeleton-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; }
+@keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---------- Toasts ---------- */
+.toast-stack {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 1090;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  width: min(380px, calc(100vw - 2rem));
+}
+.toast-rf {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  padding: 0.8rem 0.9rem; border-radius: var(--rf-radius);
+  background: var(--rf-surface); border: 1px solid var(--rf-border);
+  border-left: 4px solid var(--rf-primary);
+  box-shadow: var(--rf-shadow-lg); font-size: 0.9rem;
+  animation: toast-in 0.18s ease-out;
+}
+.toast-rf .bi { margin-top: 2px; }
+.toast-success { border-left-color: #16a34a; } .toast-success .bi { color: #16a34a; }
+.toast-danger { border-left-color: #dc2626; } .toast-danger .bi { color: #dc2626; }
+.toast-info .bi { color: var(--rf-primary); }
+.btn-close-sm { font-size: 0.65rem; margin-top: 4px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Pagination ---------- */
+.pagination-rf {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+  padding: 0.75rem 1rem; border-top: 1px solid var(--rf-border);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 991.98px) {
   .app-sidebar { transform: translateX(-100%); }
@@ -534,3 +573,8 @@ body.modal-open-rf { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Activity feed ---------- */
+.activity-row + .activity-row { border-top: 1px solid var(--rf-border); }
+.activity-row a:hover { background: var(--rf-surface-muted); text-decoration: none; }
+.min-w-0 { min-width: 0; }

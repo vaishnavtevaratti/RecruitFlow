@@ -174,6 +174,12 @@ export default function CandidateApplicationDetails() {
                   <div className="alert alert-warning small">This offer expired on {formatDate(offer.expiry_date)} and can no longer be accepted.</div>
                 )}
                 <div className="row g-3">
+                  {offer.designation && (
+                    <div className="col-12">
+                      <div className="field-label">Designation</div>
+                      <div className="fw-semibold">{offer.designation}</div>
+                    </div>
+                  )}
                   <div className="col-6">
                     <div className="field-label">Status</div>
                     <StatusBadge status={offer.status} audience="candidate" />
@@ -194,6 +200,12 @@ export default function CandidateApplicationDetails() {
                     <div className="field-label">Respond by</div>
                     <div className="fw-medium">{formatDate(offer.expiry_date)}</div>
                   </div>
+                  {offer.notes && (
+                    <div className="col-12">
+                      <div className="field-label">Offer details</div>
+                      <div className="small prewrap">{offer.notes}</div>
+                    </div>
+                  )}
                 </div>
                 {canRespond && (
                   <div className="d-flex gap-2 mt-4 pt-3 border-top flex-wrap">

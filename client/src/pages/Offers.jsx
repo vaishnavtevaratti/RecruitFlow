@@ -106,7 +106,7 @@ export default function Offers() {
                       <div className="fw-semibold">{offer.candidate_name}</div>
                       <div className="small text-muted">{offer.candidate_email}</div>
                     </td>
-                    <td className="small text-secondary">{offer.job_title}</td>
+                    <td className="small text-secondary">{offer.job_title}{offer.designation && offer.designation !== offer.job_title && <div className="text-muted">{offer.designation}</div>}</td>
                     <td className="fw-semibold">{formatCurrency(offer.salary)}</td>
                     <td className="small">{formatDate(offer.joining_date)}</td>
                     <td className={`small ${offer.status === 'EXPIRED' ? 'text-danger' : ''}`}>{formatDate(offer.expiry_date)}</td>

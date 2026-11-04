@@ -187,7 +187,7 @@ class RecruitmentService {
     // 2. JOBS
     // =========================================================================
 
-    async getJobs({ status, search, department, publicOnly = false } = {}) {
+    async getJobs({ status, search, department, location, employment_type, publicOnly = false } = {}) {
         let sql = `
             SELECT j.id, j.title, j.department, j.description, j.skills,
                    j.experience_required, j.location, j.employment_type,
@@ -211,6 +211,16 @@ class RecruitmentService {
         if (department) {
             sql += ` AND j.department = ?`;
             params.push(department);
+        }
+
+        if (location) {
+            sql += ` AND j.location = ?`;
+            params.push(location);
+        }
+
+        if (employment_type) {
+            sql += ` AND j.employment_type = ?`;
+            params.push(employment_type);
         }
 
         if (search) {
@@ -336,6 +346,27 @@ class RecruitmentService {
 
     async closeJob(id) {
         return this.setJobStatus(id, workflow.validateJobClose, workflow.JOB_STATES.CLOSED);
+    }
+
+    async reopenJob(id) {
+        const job = await this.getJobById(id);
+        if (job && job.status === workflow.JOB_STATES.CLOSED && isPastDate(job.deadline)) {
+            throw httpError(400, 'Cannot reopen a job whose application deadline has passed.');
+        }
+        return this.setJobStatus(id, workflow.validateJobReopen, workflow.JOB_STATES.PUBLISHED);
+    }
+
+    /**
+     * Deletes a job only when no application references it, so pipeline history is never lost.
+     */
+    async deleteJob(id) {
+        await this.withTransaction(async (conn) => {
+            const [rows] = await conn.execute('SELECT id FROM jobs WHERE id = ? FOR UPDATE', [id]);
+            if (!rows[0]) throw httpError(404, 'Job not found');
+            const [[{ n }]] = await conn.execute('SELECT COUNT(*) AS n FROM applications WHERE job_id = ?', [id]);
+            if (n > 0) throw httpError(409, 'This job has applications and cannot be deleted. Close it instead.');
+            await conn.execute('DELETE FROM jobs WHERE id = ?', [id]);
+        });
     }
 
     // =========================================================================
@@ -626,7 +657,7 @@ class RecruitmentService {
 
         // Fetch associated offer
         const [offers] = await pool.execute(
-            `SELECT o.id, o.salary, o.offer_date, o.joining_date, o.expiry_date,
+            `SELECT o.id, o.designation, o.notes, o.salary, o.offer_date, o.joining_date, o.expiry_date,
                     ${offerStatusSql('o')} AS status, o.created_at, o.updated_at
              FROM offers o
              WHERE o.application_id = ?`,
@@ -800,6 +831,30 @@ class RecruitmentService {
         return this.getInterviewById(id);
     }
 
+    /**
+     * Cancels a PENDING interview: the unevaluated row is removed and the application
+     * returns to SHORTLISTED so a new interview can be scheduled.
+     */
+    async cancelInterview(id) {
+        const interview = await this.getInterviewById(id);
+        if (!interview) throw httpError(404, 'Interview not found');
+
+        await this.withTransaction(async (conn) => {
+            const app = await this.lockApplication(conn, interview.application_id);
+            const [ivRows] = await conn.execute('SELECT result FROM interviews WHERE id = ? FOR UPDATE', [id]);
+            if (!ivRows[0] || ivRows[0].result !== workflow.INTERVIEW_RESULTS.PENDING) {
+                throw httpError(400, 'Only pending interviews can be cancelled.');
+            }
+            if (app.status !== workflow.APPLICATION_STATES.INTERVIEW_SCHEDULED) {
+                throw httpError(400, `Interview cannot be cancelled while the application is ${app.status}.`);
+            }
+            await conn.execute('DELETE FROM interviews WHERE id = ?', [id]);
+            await conn.execute('UPDATE applications SET status = ? WHERE id = ?', [workflow.APPLICATION_STATES.SHORTLISTED, app.id]);
+        });
+
+        return this.getApplicationById(interview.application_id);
+    }
+
     async getInterviews({ interviewerId = null, role = 'HR' } = {}) {
         let sql = `
             SELECT i.id, i.application_id, i.interviewer_id, i.scheduled_at,
@@ -912,7 +967,11 @@ class RecruitmentService {
     // 6. OFFERS & HIRING
     // =========================================================================
 
-    async createOffer({ application_id, salary, offer_date, joining_date, expiry_date }) {
+    async createOffer({ application_id, designation, notes, salary, offer_date, joining_date, expiry_date }) {
+        assertStringFields({ designation, notes }, {
+            designation: { max: 150, label: 'Designation' },
+            notes: { max: 5000, label: 'Offer details' }
+        });
         const numSalary = Number(salary);
         if (!Number.isFinite(numSalary) || numSalary <= 0 || numSalary > MAX_SALARY) {
             throw badRequest('Offer salary must be a positive number.');
@@ -933,9 +992,9 @@ class RecruitmentService {
             if (existing) throw httpError(409, 'An offer already exists for this application.');
 
             const [result] = await conn.execute(
-                `INSERT INTO offers (application_id, salary, offer_date, joining_date, expiry_date, status)
-                 VALUES (?, ?, ?, ?, ?, 'SENT')`,
-                [application_id, numSalary, offer_date, joining_date, expiry_date]
+                `INSERT INTO offers (application_id, designation, salary, offer_date, joining_date, expiry_date, notes, status)
+                 VALUES (?, COALESCE(?, (SELECT title FROM jobs WHERE id = ?)), ?, ?, ?, ?, ?, 'SENT')`,
+                [application_id, trimOrNull(designation), app.job_id, numSalary, offer_date, joining_date, expiry_date, trimOrNull(notes)]
             );
 
             await conn.execute(
@@ -950,7 +1009,7 @@ class RecruitmentService {
 
     async getOffers({ status } = {}) {
         let sql = `
-            SELECT o.id, o.application_id, o.salary, o.offer_date, o.joining_date,
+            SELECT o.id, o.application_id, o.designation, o.notes, o.salary, o.offer_date, o.joining_date,
                    o.expiry_date, ${offerStatusSql('o')} AS status, o.created_at, o.updated_at,
                    a.status AS application_status, a.candidate_id, a.job_id,
                    c.name AS candidate_name, c.email AS candidate_email,
@@ -975,7 +1034,7 @@ class RecruitmentService {
 
     async getOfferById(id) {
         const [rows] = await pool.execute(
-            `SELECT o.id, o.application_id, o.salary, o.offer_date, o.joining_date,
+            `SELECT o.id, o.application_id, o.designation, o.notes, o.salary, o.offer_date, o.joining_date,
                     o.expiry_date, ${offerStatusSql('o')} AS status, o.created_at, o.updated_at,
                     a.status AS application_status, a.candidate_id, a.job_id,
                     c.name AS candidate_name, c.email AS candidate_email,
@@ -1079,6 +1138,15 @@ class RecruitmentService {
             FROM offers o
         `);
 
+        const [recentActivity] = await pool.query(`
+            SELECT a.id, a.status, a.updated_at, c.name AS candidate_name, j.title AS job_title
+            FROM applications a
+            JOIN candidates c ON a.candidate_id = c.id
+            JOIN jobs j ON a.job_id = j.id
+            ORDER BY a.updated_at DESC, a.id DESC
+            LIMIT 8
+        `);
+
         const j = jobStats[0];
         const c = candidateStats[0];
         const a = appStats[0];
@@ -1116,6 +1184,7 @@ class RecruitmentService {
                 passed: Number(i.passedInterviews || 0),
                 failed: Number(i.failedInterviews || 0)
             },
+            recentActivity,
             offersBreakdown: {
                 total: Number(o.totalOffers || 0),
                 sent: Number(o.activeOffers || 0),
@@ -1423,7 +1492,7 @@ class RecruitmentService {
 
         // Fetch offer
         const [offers] = await pool.execute(
-            `SELECT o.id, o.salary, o.offer_date, o.joining_date, o.expiry_date,
+            `SELECT o.id, o.designation, o.notes, o.salary, o.offer_date, o.joining_date, o.expiry_date,
                     ${offerStatusSql('o')} AS status, o.created_at, o.updated_at
              FROM offers o
              WHERE o.application_id = ?`,

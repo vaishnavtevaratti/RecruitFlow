@@ -108,11 +108,13 @@ Rules enforced in the backend (`server/src/utils/workflow.js`, `recruitmentServi
 
 | Role | Can do |
 | :--- | :--- |
-| **HR / ADMIN** | Jobs (create, edit, publish, close), applications pipeline, candidates, interviews (schedule, reschedule, evaluate), offers, hiring, dashboard, skill matching. |
+| **HR / ADMIN** | Jobs (create, edit, publish, close, reopen, delete when no applicants), applications pipeline, candidates, interviews (schedule, reschedule, cancel, evaluate), offers (designation, salary, dates, details), hiring, dashboard, skill matching. |
 | **INTERVIEWER** | Sees and evaluates only interviews assigned to them, and only the applications behind those interviews. |
 | **CANDIDATE** | Own profile, browse open jobs, apply, track own applications and interviews, accept/decline own offers. |
 
 - Every API route checks the JWT and role on the server; UI hiding is only a convenience.
+- The staff login (`/api/auth/login`) refuses candidate accounts (`403`); candidates use `/api/auth/candidate/login`. There is no public way to create HR/Admin accounts: the HR account comes from `DEMO_HR_EMAIL`/`DEMO_HR_PASSWORD` via `npm run db:setup`.
+- Failed sign-in/sign-up attempts are rate limited per IP (`AUTH_RATE_LIMIT_MAX` failures per 15 minutes, then `429`).
 - Candidate endpoints derive identity from the JWT. `candidate_id`/email in request bodies are ignored, and other candidates' applications return `403`.
 - The public application form refuses emails that belong to a registered account (those users must sign in), so nobody can add applications to someone else's account.
 
@@ -120,9 +122,9 @@ Rules enforced in the backend (`server/src/utils/workflow.js`, `recruitmentServi
 
 ## 5. Features
 
-**HR portal:** live dashboard (open jobs, awaiting screening, pending interviews, active/expired offers, ready to hire, hired); job management with validation and confirm dialogs; application pipeline with stage tabs, search and job filter; application page with stage stepper, interview scheduling/rescheduling/evaluation, offer creation, hire and reject actions; interviews and offers lists with status filters; rule-based skill matching.
+**HR portal:** live dashboard (open jobs, awaiting screening, pending interviews, active/expired offers, ready to hire, hired, recent activity feed); job management with search, filters, sorting, pagination, publish/close/reopen/delete with confirm dialogs and toast notifications; application pipeline with stage tabs, search and job filter; application page with stage stepper, interview scheduling/rescheduling/cancellation/evaluation, offer creation with designation and offer details, hire and reject actions; interviews and offers lists with status filters; rule-based skill matching.
 
-**Candidate portal:** signup/login, dashboard, job board (marks jobs already applied to), apply flow that saves profile edits, application list with filters, application page with progress timeline, interview details, and offer accept/decline with confirmation; profile editing.
+**Candidate portal:** signup/login, dashboard, job board with department/location/job-type/skill filters and pagination (marks jobs already applied to), apply flow that saves profile edits, application list with filters, application page with progress timeline, interview details, and offer accept/decline with confirmation; profile editing.
 
 **Public pages:** careers board, guest application form, application status lookup (application ID + email).
 
@@ -146,9 +148,13 @@ Rules enforced in the backend (`server/src/utils/workflow.js`, `recruitmentServi
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL` | MySQL connection |
 | `JWT_SECRET` | **Required.** The server refuses to start without it (there is no built-in fallback). |
 | `DEMO_HR_EMAIL`, `DEMO_HR_PASSWORD` | Demo HR account created/updated by `db:setup`, used by test scripts |
-| `CORS_ORIGIN` | Optional comma-separated allowed origins; empty allows all (auth uses Bearer tokens, not cookies) |
+| `CORS_ORIGIN` | Comma-separated allowed origins. Empty allows all (fine locally); **set it in production** (the server warns if it is empty with `NODE_ENV=production`) |
+| `NODE_ENV` | `production` on the server host |
+| `TRUST_PROXY` | Set to `1` behind a reverse proxy/PaaS (Render, Railway, Nginx) so rate limiting sees real client IPs |
+| `AUTH_RATE_LIMIT_MAX` | Failed auth attempts allowed per IP per 15 minutes (default 10) |
+| `SEED_DEMO_DATA` | `false` makes `db:setup` skip the demo seed data (use in production) |
 
-Frontend: `client/.env` → `VITE_API_URL` (default `http://localhost:5000/api`). Never put secrets in client env files; they are bundled into the browser.
+Frontend: `client/.env` → `VITE_API_URL` (dev default `http://localhost:5000/api`; production builds fall back to same-origin `/api`, never localhost). `VITE_SHOW_DEMO_LOGIN=true` shows the demo-login buttons in a production build (they always show in `npm run dev`). Never put secrets in client env files; they are bundled into the browser.
 
 ---
 
@@ -187,9 +193,35 @@ npm.cmd run dev
 
 ---
 
-## 9. Tests
+## 9. Production Deployment
 
-Run from `server/`. Except `testSkillMatch.js`, the suites need MySQL; `testApi`, `testSecurity` and `e2eWorkflow` start an in-process API if none is running, `testCandidateApi` needs the backend running. All suites delete the records they create.
+Any Node 18+ host for the API (Render, Railway, a VM), any static host for the client (Vercel, Netlify; `client/vercel.json` already rewrites routes to `index.html`), and a MySQL 8-compatible database.
+
+1. **Database:** create an empty MySQL database and a user with rights on it.
+2. **API host:** root directory `server`, build `npm install`, start `npm start`. Environment:
+   ```
+   NODE_ENV=production
+   PORT=<provided by host>
+   DB_HOST=...  DB_PORT=3306  DB_USER=...  DB_PASSWORD=...  DB_NAME=recruitflow  DB_SSL=true
+   JWT_SECRET=<64+ random characters>
+   DEMO_HR_EMAIL=<HR admin email>
+   DEMO_HR_PASSWORD=<strong password; setup refuses the default in production>
+   CORS_ORIGIN=https://<your-frontend-domain>
+   TRUST_PROXY=1
+   SEED_DEMO_DATA=false
+   ```
+   Generate a secret with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`.
+3. **Initialise the schema once** from a machine that can reach the database: `cd server && npm run db:setup` (creates tables, applies migrations, creates the HR account). For an existing database, `npm run db:migrate` applies only pending migrations; it is idempotent and the rollback SQL is in `server/scripts/migrate.js`.
+4. **Client host:** root directory `client`, build `npm run build`, output `dist`. Set `VITE_API_URL=https://<your-api-domain>/api` before building (Vite inlines it).
+5. **Check:** `GET https://<api>/api/health/db` returns `success: true`; sign in at `/login` with the HR account; register a candidate at `/candidate/signup`.
+
+---
+
+## 10. Tests
+
+Run from `server/`. Except `testSkillMatch.js`, the suites need MySQL. Each suite starts an in-process API if none is running on `PORT` (stop a running dev server first so the tests exercise the current code); `testPlatform` always uses its own port. All suites delete the records they create.
+
+`npm test` runs every suite below (except `verifyDatabase`) in sequence.
 
 | Command | Covers |
 | :--- | :--- |
@@ -199,18 +231,21 @@ Run from `server/`. Except `testSkillMatch.js`, the suites need MySQL; `testApi`
 | `node scripts/testSecurity.js` | Role separation, IDOR, input validation, concurrent duplicate requests, offer expiry, hiring rules, transaction rollback |
 | `node scripts/testSkillMatch.js` | Skill-matching logic |
 | `node scripts/e2eWorkflow.js` | Scenario A (hire) and Scenario B (declined offer) end to end, checking both portals and MySQL |
+| `node scripts/testPlatform.js` | Job reopen/delete, job filters, interview cancel, offer designation/notes, staff-only login, dashboard activity, security headers, auth rate limit |
 
 Frontend build: `cd client; npm.cmd run build`.
 
 ---
 
-## 10. Known Limitations
+## 11. Known Limitations
 
 - No email verification: a candidate who signs up is linked to earlier guest applications made with the same email.
 - `candidates.email` has no UNIQUE index. Concurrent duplicate creation is prevented with a MySQL named lock; adding the index would need a migration (check existing data for duplicates first).
 - `candidates.experience` is `VARCHAR(50)`, so experience is a short value such as "4 years" (validated, returns 400 rather than failing).
-- No login rate limiting or account lockout.
-- Interview cancellation is not supported (no status for it in the schema); interviews can be rescheduled.
+- Auth rate limiting is in-memory per server process (resets on restart, not shared across instances). No per-account lockout.
+- Cancelling an interview deletes the pending (unevaluated) interview row and returns the application to `SHORTLISTED`; evaluated interviews cannot be cancelled.
+- List pages fetch the full list and paginate in the browser; add server-side `LIMIT/OFFSET` if a table grows to thousands of rows.
+- Resume upload is not implemented; candidates can store a resume URL.
 - Offer expiry is evaluated against the server's local date.
 - Interview datetimes are stored without a timezone; server and browsers are assumed to share one.
 - Seed data contains application #2 in `SELECTED` with an expired `SENT` offer. It is left as-is; HR can reject it to close it out.

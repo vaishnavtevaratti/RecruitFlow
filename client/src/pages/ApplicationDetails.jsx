@@ -61,6 +61,12 @@ const CONFIRM_COPY = {
     label: 'Select candidate',
     variant: 'success'
   },
+  cancelInterview: {
+    title: 'Cancel this interview?',
+    message: 'The interview is removed and the candidate returns to the shortlist, so you can schedule a new one.',
+    label: 'Cancel interview',
+    variant: 'danger'
+  },
   hire: {
     title: 'Mark candidate as hired?',
     message: 'The candidate accepted the offer. This completes the recruitment workflow for this application.',
@@ -96,7 +102,7 @@ export default function ApplicationDetails() {
 
   const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', scheduled_at: '', type: 'Technical Interview', meeting_link: '' });
   const [evaluateForm, setEvaluateForm] = useState(EMPTY_EVALUATION);
-  const [offerForm, setOfferForm] = useState({ salary: '', offer_date: '', joining_date: '', expiry_date: '' });
+  const [offerForm, setOfferForm] = useState({ designation: '', salary: '', offer_date: '', joining_date: '', expiry_date: '', notes: '' });
 
   const fetchApplication = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -170,7 +176,7 @@ export default function ApplicationDetails() {
     } else if (name === 'evaluate') {
       setEvaluateForm(EMPTY_EVALUATION);
     } else if (name === 'offer') {
-      setOfferForm({ salary: '', offer_date: dateInputValue(0), joining_date: dateInputValue(30), expiry_date: dateInputValue(14) });
+      setOfferForm({ designation: app?.job_title || '', notes: '', salary: '', offer_date: dateInputValue(0), joining_date: dateInputValue(30), expiry_date: dateInputValue(14) });
     }
     setModal(name);
   };
@@ -248,6 +254,8 @@ export default function ApplicationDetails() {
       await runAction(() => applicationService.rejectApplication(id), 'Application rejected.');
     } else if (confirmAction === 'select') {
       await runAction(() => applicationService.selectApplication(id), 'Candidate selected. You can now issue an offer.');
+    } else if (confirmAction === 'cancelInterview') {
+      await runAction(() => interviewService.cancelInterview(selectedInterview.id), 'Interview cancelled. The candidate is back on the shortlist.');
     } else if (confirmAction === 'hire') {
       await runAction(() => applicationService.hireApplication(id), 'Candidate marked as hired. Workflow complete.');
     }
@@ -412,6 +420,11 @@ export default function ApplicationDetails() {
                       app.status === 'INTERVIEW_SCHEDULED' && (
                         <div className="border-top pt-3 mt-3 d-flex justify-content-end gap-2">
                           {isHR && (
+                            <button type="button" className="btn btn-sm btn-light border text-danger" onClick={() => { setSelectedInterview(iv); setConfirmAction('cancelInterview'); }}>
+                              <i className="bi bi-x-circle me-1"></i> Cancel
+                            </button>
+                          )}
+                          {isHR && (
                             <button type="button" className="btn btn-sm btn-light border" onClick={() => openModal('reschedule', iv)}>
                               <i className="bi bi-calendar2-week me-1"></i> Reschedule
                             </button>
@@ -437,6 +450,12 @@ export default function ApplicationDetails() {
                 <StatusBadge status={offer.status} audience="offer" />
               </div>
               <div className="row g-3">
+                {offer.designation && (
+                  <div className="col-12">
+                    <div className="field-label">Designation</div>
+                    <div className="fw-semibold">{offer.designation}</div>
+                  </div>
+                )}
                 <div className="col-sm-6">
                   <div className="field-label">Annual salary</div>
                   <div className="fs-5 fw-bold text-success">{formatCurrency(offer.salary)}</div>
@@ -453,6 +472,12 @@ export default function ApplicationDetails() {
                   <div className="field-label">Respond by</div>
                   <div className={`fw-medium ${offerExpired ? 'text-danger' : ''}`}>{formatDate(offer.expiry_date)}</div>
                 </div>
+                {offer.notes && (
+                  <div className="col-12">
+                    <div className="field-label">Offer details</div>
+                    <div className="small prewrap">{offer.notes}</div>
+                  </div>
+                )}
               </div>
               <div className="border-top pt-3 mt-3 small">
                 {offer.status === 'SENT' && <span className="text-muted"><i className="bi bi-hourglass-split me-1"></i>Waiting for the candidate to accept or decline in their portal.</span>}
@@ -631,6 +656,10 @@ export default function ApplicationDetails() {
         <form onSubmit={handleOfferSubmit} noValidate>
           {formError && <ErrorMessage message={formError} />}
           <div className="row g-3">
+            <div className="col-12">
+              <label htmlFor="of-designation" className="form-label">Designation</label>
+              <input id="of-designation" type="text" maxLength={150} className="form-control" placeholder="e.g. Senior Backend Engineer" value={offerForm.designation} onChange={(e) => setOfferForm({ ...offerForm, designation: e.target.value })} />
+            </div>
             <div className="col-md-6">
               <label htmlFor="of-salary" className="form-label">Annual salary ($)</label>
               <input id="of-salary" type="number" min="1" step="1000" className="form-control" placeholder="e.g. 115000" value={offerForm.salary} onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })} required />
@@ -646,6 +675,10 @@ export default function ApplicationDetails() {
             <div className="col-md-6">
               <label htmlFor="of-expiry" className="form-label">Candidate must respond by</label>
               <input id="of-expiry" type="date" className="form-control" min={dateInputValue(0)} value={offerForm.expiry_date} onChange={(e) => setOfferForm({ ...offerForm, expiry_date: e.target.value })} required />
+            </div>
+            <div className="col-12">
+              <label htmlFor="of-notes" className="form-label">Offer details <span className="text-muted fw-normal">(optional)</span></label>
+              <textarea id="of-notes" rows={3} maxLength={5000} className="form-control" placeholder="Benefits, bonus, reporting manager, conditions…" value={offerForm.notes} onChange={(e) => setOfferForm({ ...offerForm, notes: e.target.value })} />
             </div>
           </div>
           <div className="d-flex justify-content-end gap-2 pt-3 mt-4 border-top">

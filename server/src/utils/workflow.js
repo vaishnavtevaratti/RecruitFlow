@@ -70,6 +70,16 @@ function validateJobClose(currentStatus) {
 }
 
 /**
+ * Validates reopening a CLOSED job back to PUBLISHED.
+ */
+function validateJobReopen(currentStatus) {
+    if (currentStatus !== JOB_STATES.CLOSED) {
+        return { valid: false, message: `Only closed jobs can be reopened. Current status: ${currentStatus}.` };
+    }
+    return { valid: true };
+}
+
+/**
  * Validates whether a job can accept new applications.
  */
 function validateJobAcceptsApplications(job) {
@@ -278,6 +288,7 @@ module.exports = {
     INTERVIEW_RESULTS,
     validateJobPublish,
     validateJobClose,
+    validateJobReopen,
     validateJobAcceptsApplications,
     validateApplicationScreening,
     validateApplicationShortlisting,

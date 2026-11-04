@@ -33,5 +33,15 @@ export const jobService = {
   async closeJob(id) {
     const response = await api.patch(`/jobs/${id}/close`);
     return response.data;
+  },
+
+  async reopenJob(id) {
+    const response = await api.patch(`/jobs/${id}/reopen`);
+    return response.data;
+  },
+
+  async deleteJob(id) {
+    const response = await api.delete(`/jobs/${id}`);
+    return response.data;
   }
 };

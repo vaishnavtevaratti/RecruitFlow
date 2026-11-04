@@ -11,6 +11,7 @@ const dotenv = require('dotenv');
 
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
+const app = require('../src/app');
 const { pool } = require('../src/config/db');
 
 const PORT = process.env.PORT || 5000;
@@ -36,6 +37,8 @@ let testOfferId = null;
 let testAppTwoId = null;
 let testAppThreeId = null;
 let testOfferThreeId = null;
+
+const daysFromNow = (n) => new Date(Date.now() + n * 864e5).toISOString().split('T')[0];
 
 let passedChecks = 0;
 let failedChecks = 0;
@@ -90,6 +93,10 @@ async function runCandidateTests() {
     console.log('RECRUITFLOW — CANDIDATE PORTAL & WORKFLOW VERIFICATION');
     console.log('==================================================');
 
+    // Boot an in-process server when none is running (same as testApi.js)
+    const ping = await fetch(`${BASE_URL}/api/health`).catch(() => null);
+    const serverInstance = ping ? null : app.listen(PORT);
+
     try {
         // Authenticate HR first
         const hrLoginRes = await request('/api/auth/login', {
@@ -115,7 +122,7 @@ async function runCandidateTests() {
                 employment_type: 'Full-time',
                 salary_min: 75000,
                 salary_max: 95000,
-                deadline: '2026-12-31'
+                deadline: daysFromNow(60)
             }
         });
         testJobId = createJobRes.data.data.id;
@@ -131,7 +138,7 @@ async function runCandidateTests() {
                 skills: 'Product Management',
                 experience_required: '5+ years',
                 location: 'San Francisco, CA',
-                deadline: '2026-12-31'
+                deadline: daysFromNow(60)
             }
         });
         testClosedJobId = createClosedJobRes.data.data.id;
@@ -432,8 +439,8 @@ async function runCandidateTests() {
                 application_id: testAppId,
                 salary: 92000,
                 offer_date: new Date().toISOString().split('T')[0],
-                joining_date: '2026-11-01',
-                expiry_date: '2026-12-01'
+                joining_date: daysFromNow(30),
+                expiry_date: daysFromNow(60)
             }
         });
         if (offerRes.status === 201 && offerRes.data?.data?.status === 'SENT') {
@@ -655,8 +662,8 @@ async function runCandidateTests() {
                 application_id: testAppThreeId,
                 salary: 95000,
                 offer_date: new Date().toISOString().split('T')[0],
-                joining_date: '2027-01-15',
-                expiry_date: '2027-02-15'
+                joining_date: daysFromNow(70),
+                expiry_date: daysFromNow(100)
             }
         });
         testOfferThreeId = candTwoOfferRes.data?.data?.id;
@@ -799,6 +806,7 @@ async function runCandidateTests() {
                 await pool.execute('DELETE FROM users WHERE id = ?', [candidateTwoUser.id]);
             }
             console.log('Temporary candidate test cleanup complete.');
+            if (serverInstance) serverInstance.close();
         } catch (cleanupErr) {
             console.warn('Cleanup warning:', cleanupErr.message);
         }

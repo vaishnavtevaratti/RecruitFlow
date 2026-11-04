@@ -35,6 +35,9 @@ router.patch(
     interviewController.rescheduleInterview
 );
 
+// Cancel a pending interview (HR/Admin)
+router.patch('/:id/cancel', validateParamId('id'), authorizeRoles('HR', 'ADMIN'), interviewController.cancelInterview);
+
 // Submit interview evaluation (Interviewer or HR/Admin)
 router.put(
     '/:id/evaluate',

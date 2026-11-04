@@ -30,6 +30,11 @@ export const interviewService = {
     return response.data;
   },
 
+  async cancelInterview(id) {
+    const response = await api.patch(`/interviews/${id}/cancel`);
+    return response.data;
+  },
+
   async getInterviewers() {
     const response = await api.get('/interviews/interviewers');
     return response.data;

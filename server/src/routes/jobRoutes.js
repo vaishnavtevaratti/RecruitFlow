@@ -45,4 +45,20 @@ router.patch(
     jobController.closeJob
 );
 
+router.patch(
+    '/:id/reopen',
+    validateParamId('id'),
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
+    jobController.reopenJob
+);
+
+router.delete(
+    '/:id',
+    validateParamId('id'),
+    authenticateToken,
+    authorizeRoles('HR', 'ADMIN'),
+    jobController.deleteJob
+);
+
 module.exports = router;

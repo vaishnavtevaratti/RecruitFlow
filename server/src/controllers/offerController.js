@@ -10,10 +10,12 @@ const recruitmentService = require('../services/recruitmentService');
  */
 async function createOffer(req, res, next) {
     try {
-        const { application_id, salary, offer_date, joining_date, expiry_date } = req.body;
+        const { application_id, designation, notes, salary, offer_date, joining_date, expiry_date } = req.body;
 
         const offer = await recruitmentService.createOffer({
             application_id: Number(application_id),
+            designation,
+            notes,
             salary,
             offer_date,
             joining_date,

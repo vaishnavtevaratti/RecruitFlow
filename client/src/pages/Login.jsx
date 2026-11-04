@@ -9,6 +9,8 @@ import ErrorMessage from '../components/ErrorMessage';
 import Notice from '../components/Notice';
 import { getErrorMessage } from '../utils/formatters';
 
+const SHOW_DEMO = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGIN === 'true';
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,8 +120,8 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Demo credential helper for live demonstrations (seed accounts) */}
-        <div className="border-top pt-3 mt-4 text-center">
+        {/* Demo credential helper for seed accounts: dev builds, or VITE_SHOW_DEMO_LOGIN=true for a demo deployment */}
+        {SHOW_DEMO && <div className="border-top pt-3 mt-4 text-center">
           <small className="text-muted d-block mb-2 fw-semibold">Quick demo login</small>
           <div className="d-flex gap-2 justify-content-center flex-wrap">
             <button type="button" className="btn btn-sm btn-light border" onClick={() => handleFillDemo('hr@recruitflow.com', 'Admin@123')}>
@@ -129,7 +131,7 @@ export default function Login() {
               <i className="bi bi-person-video3 me-1"></i> Interviewer
             </button>
           </div>
-        </div>
+        </div>}
 
         <div className="text-center mt-3 pt-3 border-top small">
           <p className="text-muted mb-1">

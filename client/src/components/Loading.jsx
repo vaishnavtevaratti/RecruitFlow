@@ -1,16 +1,23 @@
 /**
- * RecruitFlow — Loading Component
+ * RecruitFlow — Loading skeleton (shared by every page while data loads)
  */
 
 import React from 'react';
 
-export default function Loading({ message = 'Loading data...' }) {
+export default function Loading({ message = 'Loading data...', rows = 5 }) {
   return (
-    <div className="d-flex flex-column align-items-center justify-content-center p-5 my-4">
-      <div className="spinner-border text-primary mb-3" style={{ width: '3rem', height: '3rem' }} role="status">
-        <span className="visually-hidden">Loading...</span>
-      </div>
-      <p className="text-muted fw-semibold mb-0">{message}</p>
+    <div className="card-rf p-3 mb-4" role="status" aria-busy="true">
+      <span className="visually-hidden">{message}</span>
+      <div className="skeleton skeleton-title mb-3"></div>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="d-flex gap-3 align-items-center py-2">
+          <div className="skeleton skeleton-avatar"></div>
+          <div className="flex-grow-1">
+            <div className="skeleton skeleton-line mb-2" style={{ width: `${70 - i * 7}%` }}></div>
+            <div className="skeleton skeleton-line" style={{ width: `${40 - i * 4}%` }}></div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

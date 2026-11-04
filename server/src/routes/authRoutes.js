@@ -7,10 +7,14 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { requireFields, validateEmailField } = require('../middleware/validationMiddleware');
+const { rateLimit } = require('../middleware/rateLimit');
+
+const authLimiter = rateLimit();
 
 // POST /api/auth/login
 router.post(
     '/login',
+    authLimiter,
     requireFields(['email', 'password']),
     validateEmailField('email'),
     authController.login
@@ -19,6 +23,7 @@ router.post(
 // POST /api/auth/candidate/signup
 router.post(
     '/candidate/signup',
+    authLimiter,
     requireFields(['name', 'email', 'password']),
     validateEmailField('email'),
     authController.candidateSignup
@@ -27,6 +32,7 @@ router.post(
 // POST /api/auth/candidate/login
 router.post(
     '/candidate/login',
+    authLimiter,
     requireFields(['email', 'password']),
     validateEmailField('email'),
     authController.candidateLogin

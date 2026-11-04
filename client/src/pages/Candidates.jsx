@@ -8,10 +8,12 @@ import { candidateService } from '../services/candidateService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
+import Pagination, { paginate } from '../components/Pagination';
 import { formatDate, getErrorMessage } from '../utils/formatters';
 
 export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -25,6 +27,7 @@ export default function Candidates() {
       const res = await candidateService.getCandidates(params);
       if (res.success && res.data) {
         setCandidates(res.data);
+      setPage(1);
       }
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to fetch candidate profiles.'));
@@ -99,7 +102,7 @@ export default function Candidates() {
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((c) => (
+                {paginate(candidates, page).map((c) => (
                   <tr key={c.id}>
                     <td>
                       <Link to={`/candidates/${c.id}`} className="fw-bold text-dark text-decoration-none">
@@ -135,6 +138,7 @@ export default function Candidates() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} total={candidates.length} onChange={setPage} />
         </div>
       )}
     </div>

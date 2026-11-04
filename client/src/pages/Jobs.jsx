@@ -9,16 +9,58 @@ import StatusBadge from '../components/StatusBadge';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
-import Notice from '../components/Notice';
+import Pagination, { paginate } from '../components/Pagination';
+import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { formatDate, getErrorMessage, dateInputValue } from '../utils/formatters';
+
+const ACTIONS = {
+  publish: {
+    run: jobService.publishJob,
+    title: 'Publish job opening?',
+    message: (job) => `"${job.title}" will be visible to candidates and open for applications until ${formatDate(job.deadline)}.`,
+    label: 'Publish',
+    variant: 'success'
+  },
+  close: {
+    run: jobService.closeJob,
+    title: 'Close job opening?',
+    message: (job) => `"${job.title}" will stop accepting applications. You can reopen it later while the deadline has not passed.`,
+    label: 'Close job',
+    variant: 'danger'
+  },
+  reopen: {
+    run: jobService.reopenJob,
+    title: 'Reopen job opening?',
+    message: (job) => `"${job.title}" will be published again and accept applications until ${formatDate(job.deadline)}.`,
+    label: 'Reopen',
+    variant: 'primary'
+  },
+  delete: {
+    run: jobService.deleteJob,
+    title: 'Delete job opening?',
+    message: (job) => `"${job.title}" will be permanently deleted. This cannot be undone.`,
+    label: 'Delete job',
+    variant: 'danger'
+  }
+};
+
+const SORTS = {
+  newest: (a, b) => new Date(b.created_at) - new Date(a.created_at),
+  oldest: (a, b) => new Date(a.created_at) - new Date(b.created_at),
+  deadline: (a, b) => String(a.deadline).localeCompare(String(b.deadline)),
+  title: (a, b) => a.title.localeCompare(b.title),
+  applicants: (a, b) => Number(b.application_count) - Number(a.application_count)
+};
 
 export default function Jobs() {
   const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
+  const toast = useToast();
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState('newest');
   const [pending, setPending] = useState(null); // { job, action }
   const [busy, setBusy] = useState(false);
 
@@ -38,6 +80,7 @@ export default function Jobs() {
 
       const res = await jobService.getJobs(params);
       setJobs(res.data || []);
+      setPage(1);
       if (!statusFilter && !departmentFilter && !search.trim()) {
         setDepartments(Array.from(new Set((res.data || []).map((j) => j.department))).filter(Boolean).sort());
       }
@@ -64,25 +107,22 @@ export default function Jobs() {
     try {
       setBusy(true);
       setError('');
-      if (action === 'publish') {
-        await jobService.publishJob(job.id);
-        setFeedback(`"${job.title}" is now published and accepting applications.`);
-      } else {
-        await jobService.closeJob(job.id);
-        setFeedback(`"${job.title}" has been closed. New applications are blocked.`);
-      }
+      const res = await ACTIONS[action].run(job.id);
+      toast.success(res.message || `"${job.title}" updated.`);
       setPending(null);
       await fetchJobs();
     } catch (err) {
       setPending(null);
-      setFeedback('');
-      setError(getErrorMessage(err, `Failed to ${action} job.`));
+      toast.error(getErrorMessage(err, `Failed to ${action} job.`));
     } finally {
       setBusy(false);
     }
   };
 
   const today = dateInputValue(0);
+  const sorted = [...jobs].sort(SORTS[sort]);
+  const visible = paginate(sorted, page);
+  const confirm = pending ? ACTIONS[pending.action] : null;
 
   return (
     <div>
@@ -96,12 +136,11 @@ export default function Jobs() {
         </Link>
       </div>
 
-      <Notice message={feedback} onClose={() => setFeedback('')} />
       {error && <ErrorMessage message={error} onRetry={fetchJobs} />}
 
       <div className="card-rf filter-bar mb-4">
         <form onSubmit={handleSearchSubmit} className="row g-2 align-items-center">
-          <div className="col-12 col-md-5">
+          <div className="col-12 col-xl-4">
             <div className="input-group">
               <span className="input-group-text"><i className="bi bi-search"></i></span>
               <input
@@ -114,7 +153,7 @@ export default function Jobs() {
               />
             </div>
           </div>
-          <div className="col-6 col-md-3">
+          <div className="col-6 col-md-3 col-xl-2">
             <select className="form-select" aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All statuses</option>
               <option value="DRAFT">Draft</option>
@@ -122,7 +161,7 @@ export default function Jobs() {
               <option value="CLOSED">Closed</option>
             </select>
           </div>
-          <div className="col-6 col-md-3">
+          <div className="col-6 col-md-3 col-xl-2">
             <select className="form-select" aria-label="Filter by department" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
               <option value="">All departments</option>
               {departments.map((dept) => (
@@ -130,7 +169,16 @@ export default function Jobs() {
               ))}
             </select>
           </div>
-          <div className="col-12 col-md-1">
+          <div className="col-8 col-md-4 col-xl-3">
+            <select className="form-select" aria-label="Sort jobs" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="deadline">Deadline (soonest)</option>
+              <option value="title">Title (A–Z)</option>
+              <option value="applicants">Most applicants</option>
+            </select>
+          </div>
+          <div className="col-4 col-md-2 col-xl-1">
             <button type="submit" className="btn btn-outline-primary w-100">Search</button>
           </div>
         </form>
@@ -161,7 +209,7 @@ export default function Jobs() {
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job) => {
+                {visible.map((job) => {
                   const deadlinePassed = job.deadline && job.deadline < today;
                   return (
                     <tr key={job.id}>
@@ -205,6 +253,16 @@ export default function Jobs() {
                               Close
                             </button>
                           )}
+                          {job.status === 'CLOSED' && (
+                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setPending({ job, action: 'reopen' })}>
+                              Reopen
+                            </button>
+                          )}
+                          {Number(job.application_count) === 0 && (
+                            <button type="button" className="btn btn-sm btn-light border text-danger" title="Delete" aria-label={`Delete ${job.title}`} onClick={() => setPending({ job, action: 'delete' })}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -213,19 +271,16 @@ export default function Jobs() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} total={sorted.length} onChange={setPage} />
         </div>
       )}
 
       <ConfirmDialog
         isOpen={Boolean(pending)}
-        title={pending?.action === 'publish' ? 'Publish job opening?' : 'Close job opening?'}
-        message={
-          pending?.action === 'publish'
-            ? `"${pending?.job.title}" will be visible to candidates and open for applications until ${formatDate(pending?.job.deadline)}.`
-            : `"${pending?.job.title}" will stop accepting applications. Closed jobs cannot be republished.`
-        }
-        confirmLabel={pending?.action === 'publish' ? 'Publish' : 'Close job'}
-        variant={pending?.action === 'publish' ? 'success' : 'danger'}
+        title={confirm?.title}
+        message={confirm?.message(pending.job)}
+        confirmLabel={confirm?.label}
+        variant={confirm?.variant}
         busy={busy}
         onConfirm={runAction}
         onCancel={() => setPending(null)}

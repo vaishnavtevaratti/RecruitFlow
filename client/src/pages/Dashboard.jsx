@@ -8,7 +8,8 @@ import { Link } from 'react-router-dom';
 import { dashboardService } from '../services/dashboardService';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
-import { getErrorMessage } from '../utils/formatters';
+import StatusBadge from '../components/StatusBadge';
+import { getErrorMessage, formatDateTime } from '../utils/formatters';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -184,6 +185,34 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card-rf mt-4 overflow-hidden">
+        <div className="p-4 pb-2">
+          <h2 className="section-title mb-0">Recent activity</h2>
+          <p className="small text-muted mb-0">Latest application updates across all jobs</p>
+        </div>
+        {(stats.recentActivity || []).length === 0 ? (
+          <p className="text-muted small px-4 pb-4 mb-0">No applications yet.</p>
+        ) : (
+          <ul className="list-unstyled mb-0">
+            {stats.recentActivity.map((a) => (
+              <li key={a.id} className="activity-row">
+                <Link to={`/applications/${a.id}`} className="d-flex align-items-center gap-3 text-decoration-none text-reset px-4 py-3">
+                  <span className="avatar-circle avatar-sm">{a.candidate_name?.charAt(0)}</span>
+                  <span className="flex-grow-1 min-w-0">
+                    <span className="d-block fw-semibold text-truncate">{a.candidate_name}</span>
+                    <span className="d-block small text-muted text-truncate">{a.job_title}</span>
+                  </span>
+                  <span className="text-end">
+                    <StatusBadge status={a.status} />
+                    <span className="d-block small text-muted mt-1">{formatDateTime(a.updated_at)}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

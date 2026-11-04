@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const { runMigrations } = require('./migrate');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 
@@ -24,7 +25,18 @@ const {
     DEMO_HR_PASSWORD = 'Admin@123'
 } = process.env;
 
+// The SQL files name `recruitflow` for manual mysql CLI use; setup targets DB_NAME instead
+function withoutDatabaseSwitch(sql) {
+    return sql.replace(/^\s*(CREATE DATABASE|USE)\b[^;]*;/gim, '');
+}
+
 async function setupDatabase() {
+    if (process.env.NODE_ENV === 'production' && (!process.env.DEMO_HR_PASSWORD || DEMO_HR_PASSWORD === 'Admin@123')) {
+        console.error('[FAIL] In production set DEMO_HR_PASSWORD to a strong, non-default password before running setup.');
+        process.exitCode = 1;
+        return false;
+    }
+
     console.log('--------------------------------------------------');
     console.log('RecruitFlow Database Setup');
     console.log('--------------------------------------------------');
@@ -46,9 +58,14 @@ async function setupDatabase() {
 
         // 2. Create database if not exists
         console.log(`Creating database '${DB_NAME}' if it does not exist...`);
-        await connection.query(
-            `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
-        );
+        try {
+            await connection.query(
+                `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+            );
+        } catch (err) {
+            // Managed MySQL often pre-creates the database and denies CREATE DATABASE
+            console.log(`[INFO] Could not create database (${err.code}); using existing '${DB_NAME}'.`);
+        }
         console.log(`[PASS] Database '${DB_NAME}' is ready.`);
 
         // Switch to the database
@@ -60,21 +77,26 @@ async function setupDatabase() {
         if (!fs.existsSync(schemaPath)) {
             throw new Error(`Schema file not found at ${schemaPath}`);
         }
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const schemaSql = withoutDatabaseSwitch(fs.readFileSync(schemaPath, 'utf8'));
         console.log('Applying database schema...');
         await connection.query(schemaSql);
         console.log('[PASS] Database schema applied successfully.');
 
-        // 4. Apply seed.sql
+        // Bring older databases up to the current schema (idempotent)
+        await runMigrations(connection, DB_NAME);
+
+        // 4. Apply seed.sql (demo data; set SEED_DEMO_DATA=false for production)
+        if (process.env.SEED_DEMO_DATA !== 'false') {
         const seedPath = path.resolve(__dirname, '..', '..', 'database', 'seed.sql');
         console.log(`Reading seed data from: ${seedPath}`);
         if (!fs.existsSync(seedPath)) {
             throw new Error(`Seed file not found at ${seedPath}`);
         }
-        const seedSql = fs.readFileSync(seedPath, 'utf8');
+        const seedSql = withoutDatabaseSwitch(fs.readFileSync(seedPath, 'utf8'));
         console.log('Applying seed data...');
         await connection.query(seedSql);
         console.log('[PASS] Base seed data applied successfully.');
+        }
 
         // 5. Ensure configured Demo HR account matches server/.env credentials securely
         console.log(`Ensuring demo HR account for email: ${DEMO_HR_EMAIL}...`);

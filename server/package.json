@@ -7,12 +7,16 @@
     "start": "node src/server.js",
     "dev": "node src/server.js",
     "db:setup": "node scripts/setupDatabase.js",
+    "db:migrate": "node scripts/migrate.js",
     "db:verify": "node scripts/verifyDatabase.js",
     "verify-db": "node scripts/verifyDatabase.js",
     "test-api": "node scripts/testApi.js",
     "test-candidate": "node scripts/testCandidateApi.js",
     "test-security": "node scripts/testSecurity.js",
-    "test-skill-match": "node scripts/testSkillMatch.js"
+    "test-skill-match": "node scripts/testSkillMatch.js",
+    "test-e2e": "node scripts/e2eWorkflow.js",
+    "test-platform": "node scripts/testPlatform.js",
+    "test": "npm run test-api && npm run test-candidate && npm run test-security && npm run test-skill-match && npm run test-e2e && npm run test-platform"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
