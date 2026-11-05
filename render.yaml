@@ -1,0 +1,40 @@
+# Render Blueprint for the RecruitFlow API (free web service).
+# Non-secret settings live here. Values marked `sync: false` are secrets: Render asks for them
+# in its dashboard when the Blueprint is created, and they are never stored in this repository.
+services:
+  - type: web
+    name: recruitflow-api
+    runtime: node
+    plan: free
+    region: singapore # same city as the Aiven database (do-sgp)
+    rootDir: server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DB_SSL
+        value: "true"
+      - key: DB_NAME
+        value: recruitflow
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # Set after the frontend is deployed, e.g. https://recruitflow.vercel.app
+      - key: CORS_ORIGIN
+        sync: false

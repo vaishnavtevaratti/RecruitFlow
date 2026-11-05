@@ -35,3 +35,6 @@ testing/reports/screenshots/
 # Local-only files
 *.docx
 .claude/
+
+# Database CA certificates (download per environment)
+server/certs/
