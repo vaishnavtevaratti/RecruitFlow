@@ -66,9 +66,10 @@ export function formatCurrency(amount) {
   if (amount === null || amount === undefined || amount === '') return '—';
   const num = Number(amount);
   if (isNaN(num)) return amount;
-  return new Intl.NumberFormat('en-US', {
+  // Indian rupees with lakh/crore grouping, e.g. ₹24,00,000
+  return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
     maximumFractionDigits: 0
   }).format(num);
 }

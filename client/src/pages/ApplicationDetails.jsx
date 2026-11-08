@@ -664,8 +664,8 @@ export default function ApplicationDetails() {
               <input id="of-designation" type="text" maxLength={150} className="form-control" placeholder="e.g. Senior Backend Engineer" value={offerForm.designation} onChange={(e) => setOfferForm({ ...offerForm, designation: e.target.value })} />
             </div>
             <div className="col-md-6">
-              <label htmlFor="of-salary" className="form-label">Annual salary ($)</label>
-              <input id="of-salary" type="number" min="1" step="1000" className="form-control" placeholder="e.g. 115000" value={offerForm.salary} onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })} required />
+              <label htmlFor="of-salary" className="form-label">Annual salary (₹)</label>
+              <input id="of-salary" type="number" min="1" step="1000" className="form-control" placeholder="e.g. 1200000" value={offerForm.salary} onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })} required />
             </div>
             <div className="col-md-6">
               <label htmlFor="of-date" className="form-label">Offer date</label>

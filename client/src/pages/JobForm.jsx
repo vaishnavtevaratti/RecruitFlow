@@ -207,13 +207,13 @@ export default function JobForm() {
         <h2 className="section-title">Compensation & deadline</h2>
         <div className="row g-3">
           <div className="col-12 col-md-4">
-            <label htmlFor="salary_min" className="form-label">Minimum salary ($)</label>
-            <input id="salary_min" type="number" min="0" step="1000" name="salary_min" className={fieldClass('salary_min')} placeholder="e.g. 80000" value={formData.salary_min} onChange={handleChange} />
+            <label htmlFor="salary_min" className="form-label">Minimum salary (₹ per year)</label>
+            <input id="salary_min" type="number" min="0" step="1000" name="salary_min" className={fieldClass('salary_min')} placeholder="e.g. 800000" value={formData.salary_min} onChange={handleChange} />
             <FieldError name="salary_min" />
           </div>
           <div className="col-12 col-md-4">
-            <label htmlFor="salary_max" className="form-label">Maximum salary ($)</label>
-            <input id="salary_max" type="number" min="0" step="1000" name="salary_max" className={fieldClass('salary_max')} placeholder="e.g. 120000" value={formData.salary_max} onChange={handleChange} />
+            <label htmlFor="salary_max" className="form-label">Maximum salary (₹ per year)</label>
+            <input id="salary_max" type="number" min="0" step="1000" name="salary_max" className={fieldClass('salary_max')} placeholder="e.g. 1200000" value={formData.salary_max} onChange={handleChange} />
             <FieldError name="salary_max" />
           </div>
           <div className="col-12 col-md-4">
